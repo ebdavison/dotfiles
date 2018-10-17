@@ -3,13 +3,11 @@ genpasswd() {
 }
 
 genpwentry() {
-    read -p "Passsord: " PW
-    read -p "Salt: " SALT
-    #echo "${PW} ${SALT}"
+    read -sp "Passsord: " PW
+    read -sp "Salt: " SALT
     export PW
     export SALT
-    perl -e 'print $ENV{PW} . "\n" . $ENV{SALT} . "\n" . crypt($ENV{PW},"\$6\$".
-$ENV{SALT}."\$") . "\n"'
+    perl -e 'print crypt($ENV{PW},"\$6\$".$ENV{SALT}."\$") . "\n"'
     unset PW
     unset SALT
 }
