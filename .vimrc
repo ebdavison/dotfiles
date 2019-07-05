@@ -10,15 +10,22 @@ syntax on
 
 " autoindent
 autocmd FileType perl set autoindent|set smartindent
+autocmd FileType python set autoindent|set smartindent
+
+" python specific
+autocmd BufRead *.py set smartindent cinwords=if,elif,else,for,while,try,except,finally,def,class
 
 " 4 space tabs
 autocmd FileType perl set tabstop=4|set shiftwidth=4|set expandtab|set softtabstop=4
+autocmd FileType python set tabstop=4|set shiftwidth=4|set expandtab|set softtabstop=4
 
 " show matching brackets
 autocmd FileType perl set showmatch
+autocmd FileType python set showmatch
 
 " show line numbers
 autocmd FileType perl set number
+autocmd FileType python set number
 
 " check perl code with :make
 autocmd FileType perl set makeprg=perl\ -c\ %\ $*
