@@ -137,3 +137,5 @@ function ProgressBar {
 
 }
 
+source ~/bin/command_prompt.sh
+
