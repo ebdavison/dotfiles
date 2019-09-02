@@ -11,3 +11,14 @@ genpwentry() {
     unset PW
     unset SALT
 }
+
+function docdate () {
+  f="$1"
+  d="${2:-now}"
+  iso="$(date -d "$d" -Iseconds|sed -e 's/[-+][0-9]*$//')"
+  unzip -p "$f" meta.xml |
+  sed -e "s,<meta:creation-date>[^<]*,<meta:creation-date>${iso}," >meta.xml &&
+  zip "$f" meta.xml
+  rm -f meta.xml
+}
+
