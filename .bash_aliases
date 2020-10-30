@@ -22,6 +22,14 @@ function docdate () {
   rm -f meta.xml
 }
 
+alias llth='ls -lt | head'
+alias unknown='ssh-keygen -R'
+
+# -------
+# ssh tunnel alias
+# -------
+alias sshtun='~/bin/ssh-tunnel-manager.sh --config ~/bin/ssh-tunnel-manager.conf'
+
 # ----------------------
 # Git Aliases
 # ----------------------
@@ -64,3 +72,10 @@ alias gsts='git stash save'
 # ----------------------
 # Git log find by commit message
 function glf() { git log --all --grep="$1"; }
+
+
+gd() {
+	    DIR=$HOME/git/${1}
+	        cd ${DIR}
+	}
+complete -W "$(cd ~/git; for i in $(/bin/ls); do echo "$i"; done)" gd
