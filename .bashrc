@@ -137,5 +137,27 @@ function ProgressBar {
 
 }
 
-source ~/bin/command_prompt.sh
+eval "$(jump shell)"
+
+#source ~/bin/command_prompt.sh
+
+function _update_ps1() { export PS1="$(/opt/Data/Personal/NextCloud/Documents/IT/repos/promptastic/promptastic.py $?)"; }
+
+function _update_ps1() {
+        #line="`printf -vch "%${COLUMNS}s" ""; printf "%s" "${ch// /-}"`"
+        #dts="`date +"-- %Y-%b-%d %H:%M:%S "`"
+        #export PS1='${dts}${line:${#dts}}\[\e[0m\]\r-(\[\e[0m\]\t\[\e[0m\])-(\[\e[0;36m\]\u\[\e[0;36m\]@\[\e[0;36m\]\h\[\e[0m\])-(\[\e[0;48;5;238m\]\w\[\e[0m\])-(\[\e[0;31m\]$?\[\e[0m\])-(\[\e[0;41m\]\[\e[1;41m\]$(git branch 2>/dev/null | grep '"'"'^*'"'"' | colrm 1 2)\[\e[0;41m\]\[\e[0m\])- \$\[\e[0m\] ';
+        export PS1='-(\[\e[0m\]\t\[\e[0m\])-(\[\e[0;36m\]\u\[\e[0;36m\]@\[\e[0;36m\]\h\[\e[0m\])-(\[\e[0;48;5;238m\]\w\[\e[0m\])-(\[\e[0;31m\]$?\[\e[0m\])-(\[\e[0;41m\]\[\e[1;41m\]$(git branch 2>/dev/null | grep '"'"'^*'"'"' | colrm 1 2)\[\e[0;41m\]\[\e[0m\])- \$\[\e[0m\] ';
+}
+
+
+export HISTTIMEFORMAT="%s "
+#export PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND"
+export PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND"'echo $$ $USER \
+               "$(history 1)" >> ~/.bash_eternal_history'
+
+#if [ -f "/opt/Data/Personal/repos/bash-git-prompt/gitprompt.sh" ]; then
+#	GIT_PROMPT_ONLY_IN_REPO=1
+#	source /opt/Data/Personal/repos/bash-git-prompt/gitprompt.sh
+#fi
 
