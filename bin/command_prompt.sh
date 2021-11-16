@@ -255,6 +255,13 @@ function load_prompt () {
         PROMPT_COMMAND=promptcmd
      fi 
     export PS1 PROMPT_COMMAND
+
+    export HISTTIMEFORMAT="%s "
+    PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND ; }"'echo $$ $USER \
+               "$(history 1)" >> ~/.bash_eternal_history'
+
+    echo PROMPT_COMMAND: $PROMPT_COMMAND
+    # echo PS1: $PS1
 }
 
 load_prompt
