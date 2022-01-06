@@ -25,11 +25,6 @@ function docdate () {
 alias llth='ls -lt | head'
 alias unknown='ssh-keygen -R'
 
-# -------
-# ssh tunnel alias
-# -------
-alias sshtun='~/bin/ssh-tunnel-manager.sh --config ~/bin/ssh-tunnel-manager.conf'
-
 # ----------------------
 # Git Aliases
 # ----------------------
@@ -73,9 +68,18 @@ alias gsts='git stash save'
 # Git log find by commit message
 function glf() { git log --all --grep="$1"; }
 
+# -------
+# ssh tunnel alias
+# -------
+alias sshtun='~/bin/ssh-tunnel-manager.sh --config ~/bin/ssh-tunnel-manager.conf'
 
-gd() {
-	    DIR=$HOME/git/${1}
-	        cd ${DIR}
-	}
-complete -W "$(cd ~/git; for i in $(/bin/ls); do echo "$i"; done)" gd
+# --------
+# cisco specific
+# --------
+alias awsjump='ssh -J heimdall -A ${1}'
+alias gitlab='ssh -i ~/.ssh/id_rsa -T -L 8088:gitlab.tgsre.net:8088 eddaviso@34.197.225.206'
+alias gitlabssh='ssh -i ~/.ssh/id_rsa -T -L 20022:gitlab.tgsre.net:22 eddaviso@34.197.225.206'
+alias esm1='ssh -i ~/.ssh/id_rsa -T -L 29200:es-master-1.tgsre.net:9200 eddaviso@34.197.225.206'
+alias esk1='ssh -i ~/.ssh/id_rsa -T -L 25601:es-master-1.tgsre.net:5601 eddaviso@34.197.225.206'
+alias mount_ui01fs='sshfs -o idmap=user eddaviso@hunt-ui-01.clg5.amp.ciscolabs.com: /opt/Data/Cisco/mounts/hunt-ui-01'
+

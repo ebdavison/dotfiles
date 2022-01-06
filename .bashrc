@@ -141,7 +141,7 @@ eval "$(jump shell)"
 
 #source ~/bin/command_prompt.sh
 
-function _update_ps1() { export PS1="$(/opt/Data/Personal/NextCloud/Documents/IT/repos/promptastic/promptastic.py $?)"; }
+#function _update_ps1() { export PS1="$(/opt/Data/Personal/NextCloud/Documents/IT/repos/promptastic/promptastic.py $?)"; }
 
 function _update_ps1() {
         #line="`printf -vch "%${COLUMNS}s" ""; printf "%s" "${ch// /-}"`"
