@@ -12,6 +12,9 @@ esac
 export HISTCONTROL=erasedups
 export HISTFILE=~/.bash_eternal_history
 
+# export HISTTIMEFORMAT="%s "
+export HISTTIMEFORMAT="[%F %T] "
+
 # append to the history file, don't overwrite it
 shopt -s histappend
 
@@ -153,11 +156,11 @@ function _update_ps1() {
 }
 
 
-# export HISTTIMEFORMAT="%s "
-export HISTTIMEFORMAT="[%F %T] "
 #export PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND"
-export PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND; echo $$ $USER $(history 1) >> ~/.bash_eternal_history"
 # export PROMPT_COMMAND="_update_ps1; history -a >> $HISTFILE; $PROMPT_COMMAND"
+# export PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND; echo $$ $USER $(history 1) >> ~/.bash_eternal_history"
+PROMPT_COMMAND="_update_ps1; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"'echo $$ $USER \
+	               "$(history 1)" >> ~/.bash_eternal_history'
 
 #if [ -f "/opt/Data/Personal/repos/bash-git-prompt/gitprompt.sh" ]; then
 #	GIT_PROMPT_ONLY_IN_REPO=1
