@@ -8,14 +8,16 @@ esac
 
 # don't put duplicate lines or lines starting with space in the history.
 # See bash(1) for more options
-HISTCONTROL=ignoreboth
+#HISTCONTROL=ignoreboth
+export HISTCONTROL=erasedups
+export HISTFILE=~/.bash_eternal_history
 
 # append to the history file, don't overwrite it
 shopt -s histappend
 
 # for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
-HISTSIZE=1000
-HISTFILESIZE=2000
+export HISTSIZE=1000
+export HISTFILESIZE=2000
 
 # check the window size after each command and, if necessary,
 # update the values of LINES and COLUMNS.
@@ -151,10 +153,11 @@ function _update_ps1() {
 }
 
 
-export HISTTIMEFORMAT="%s "
+# export HISTTIMEFORMAT="%s "
+export HISTTIMEFORMAT="[%F %T] "
 #export PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND"
-export PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND"'echo $$ $USER \
-               "$(history 1)" >> ~/.bash_eternal_history'
+export PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND; echo $$ $USER $(history 1) >> ~/.bash_eternal_history"
+# export PROMPT_COMMAND="_update_ps1; history -a >> $HISTFILE; $PROMPT_COMMAND"
 
 #if [ -f "/opt/Data/Personal/repos/bash-git-prompt/gitprompt.sh" ]; then
 #	GIT_PROMPT_ONLY_IN_REPO=1
