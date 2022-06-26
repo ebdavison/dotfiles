@@ -167,3 +167,10 @@ PROMPT_COMMAND="_update_ps1; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"'echo $$ $USER \
 #	source /opt/Data/Personal/repos/bash-git-prompt/gitprompt.sh
 #fi
 
+[[ -f ~/.bash-preexec.sh ]] && source ~/.bash-preexec.sh
+
+# setup atuin (history search from SQLITE DB)
+# curl https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh -o ~/.bash-preexec.sh
+# echo '[[ -f ~/.bash-preexec.sh ]] && source ~/.bash-preexec.sh' >> ~/.bashrc
+eval "$(atuin init bash)"
+
