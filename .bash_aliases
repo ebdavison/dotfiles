@@ -83,3 +83,25 @@ alias esm1='ssh -i ~/.ssh/id_rsa -T -L 29200:es-master-1.tgsre.net:9200 eddaviso
 alias esk1='ssh -i ~/.ssh/id_rsa -T -L 25601:es-master-1.tgsre.net:5601 eddaviso@34.197.225.206'
 alias mount_ui01fs='sshfs -o idmap=user eddaviso@hunt-ui-01.clg5.amp.ciscolabs.com: /opt/Data/Cisco/mounts/hunt-ui-01'
 
+
+# local directory aliases
+alias cd-ci="cd /opt/Data/Cisco"
+alias cd-ne="cd /opt/Data/Personal/NextCloud"
+alias cd-so="cd /opt/Data/Software"
+
+#alias tmux="tmux -u"
+alias tmux="systemd-run --scope --user tmux -u "
+
+# docker related
+# # get all docker IPs
+alias dcips=$'docker inspect -f \'{{.Name}}-{{range  $k, $v := .NetworkSettings.Networks}}{{$k}}-{{.IPAddress}} {{end}}-{{range $k, $v := .NetworkSettings.Ports}}{{ if not $v }}{{$k}} {{end}}{{end}} -{{range $k, $v := .NetworkSettings.Ports}}{{ if $v }}{{$k}} => {{range . }}{{ .HostIp}}:{{.HostPort}}{{end}}{{end}} {{end}}\' $(docker ps -aq) | column -t -s-'
+# docker compose shortcut alias
+alias dcp='docker-compose -f ~/docker-compose.yml '
+# Tail last 50 lines of docker logs
+alias dtail='docker logs -tf --tail='50' '
+
+# Remove unused images (useful after an upgrade)
+alias dprune='docker image prune'
+
+# Remove unused images, unused networks *and data* (use with care)
+alias dprunesys='docker system prune --all'
