@@ -152,7 +152,8 @@ function _update_ps1() {
         #line="`printf -vch "%${COLUMNS}s" ""; printf "%s" "${ch// /-}"`"
         #dts="`date +"-- %Y-%b-%d %H:%M:%S "`"
         #export PS1='${dts}${line:${#dts}}\[\e[0m\]\r-(\[\e[0m\]\t\[\e[0m\])-(\[\e[0;36m\]\u\[\e[0;36m\]@\[\e[0;36m\]\h\[\e[0m\])-(\[\e[0;48;5;238m\]\w\[\e[0m\])-(\[\e[0;31m\]$?\[\e[0m\])-(\[\e[0;41m\]\[\e[1;41m\]$(git branch 2>/dev/null | grep '"'"'^*'"'"' | colrm 1 2)\[\e[0;41m\]\[\e[0m\])- \$\[\e[0m\] ';
-        export PS1='-(\[\e[0m\]\t\[\e[0m\])-(\[\e[0;36m\]\u\[\e[0;36m\]@\[\e[0;36m\]\h\[\e[0m\])-(\[\e[0;48;5;238m\]\w\[\e[0m\])-(\[\e[0;31m\]$?\[\e[0m\])-(\[\e[0;41m\]\[\e[1;41m\]$(git branch 2>/dev/null | grep '"'"'^*'"'"' | colrm 1 2)\[\e[0;41m\]\[\e[0m\])- \$\[\e[0m\] ';
+#        export PS1='-(\[\e[0m\]\t\[\e[0m\])-(\[\e[0;36m\]\u\[\e[0;36m\]@\[\e[0;36m\]\h\[\e[0m\])-(\[\e[0;48;5;238m\]\w\[\e[0m\])-(\[\e[0;31m\]$?\[\e[0m\])-(\[\e[0;41m\]\[\e[1;41m\]$(git branch 2>/dev/null | grep '"'"'^*'"'"' | colrm 1 2)\[\e[0;41m\]\[\e[0m\])- \$\[\e[0m\] ';
+        export PROMPT1='-(\[\e[0m\]\t\[\e[0m\])-(\[\e[0;36m\]\u\[\e[0;36m\]@\[\e[0;36m\]\h\[\e[0m\])-(\[\e[0;48;5;238m\]\w\[\e[0m\])-(\[\e[0;31m\]$?\[\e[0m\])-(\[\e[0;41m\]\[\e[1;41m\]$(git branch 2>/dev/null | grep '"'"'^*'"'"' | colrm 1 2)\[\e[0;41m\]\[\e[0m\])- \$\[\e[0m\] ';
 }
 
 
@@ -172,10 +173,14 @@ PROMPT_COMMAND="_update_ps1; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"'echo $$ $USER \
 # setup atuin (history search from SQLITE DB)
 # curl https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh -o ~/.bash-preexec.sh
 # echo '[[ -f ~/.bash-preexec.sh ]] && source ~/.bash-preexec.sh' >> ~/.bashrc
-eval "$(atuin init bash)"
+#eval "$(atuin init bash)"
 
 
 # if test -n "$DESKTOP_SESSION"
 # 	set -x $(gnome-keyring-daemon--start | string split "=")
 # fi
+
+# eval "$(oh-my-posh init bash --config ~/.poshthemes/ys.omp.json)"
+# eval "$(oh-my-posh init bash --config ~/.poshthemes/stelbent.minimal.omp.json)"
+eval "$(oh-my-posh init bash --config ~/.poshthemes/tokyo.omp.json)"
 
