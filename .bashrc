@@ -186,3 +186,5 @@ eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/tokyo.omp.json)"
 
 eval "$($HOME/bin/fasd --init auto)"
 
+[ -r "$HOME/.smartcd_config" ] && ( [ -n $BASH_VERSION ] || [ -n $ZSH_VERSION ] ) && source ~/.smartcd_config
+
