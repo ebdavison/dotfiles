@@ -180,7 +180,7 @@ PROMPT_COMMAND="_update_ps1; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"'echo $$ $USER \
 # 	set -x $(gnome-keyring-daemon--start | string split "=")
 # fi
 
-# eval "$(oh-my-posh init bash --config ~/.poshthemes/ys.omp.json)"
-# eval "$(oh-my-posh init bash --config ~/.poshthemes/stelbent.minimal.omp.json)"
-eval "$(oh-my-posh init bash --config ~/.poshthemes/tokyo.omp.json)"
+# eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/ys.omp.json)"
+# eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/stelbent.minimal.omp.json)"
+eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/tokyo.omp.json)"
 
