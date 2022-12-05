@@ -142,7 +142,7 @@ function ProgressBar {
 
 }
 
-eval "$(jump shell)"
+# eval "$(jump shell)"
 
 #source ~/bin/command_prompt.sh
 
@@ -183,4 +183,6 @@ PROMPT_COMMAND="_update_ps1; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"'echo $$ $USER \
 # eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/ys.omp.json)"
 # eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/stelbent.minimal.omp.json)"
 eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/tokyo.omp.json)"
+
+eval "$($HOME/bin/fasd --init auto)"
 
