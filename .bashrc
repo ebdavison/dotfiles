@@ -160,7 +160,7 @@ function _update_ps1() {
 #export PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND"
 # export PROMPT_COMMAND="_update_ps1; history -a >> $HISTFILE; $PROMPT_COMMAND"
 # export PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND; echo $$ $USER $(history 1) >> ~/.bash_eternal_history"
-PROMPT_COMMAND="_update_ps1; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"'echo $$ $USER \
+PROMPT_COMMAND="_update_ps1; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"' echo $$ $USER \
 	               "$(history 1)" >> ~/.bash_eternal_history'
 
 #if [ -f "/opt/Data/Personal/repos/bash-git-prompt/gitprompt.sh" ]; then
