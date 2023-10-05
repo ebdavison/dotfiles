@@ -186,5 +186,20 @@ eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/tokyo.omp.json)"
 
 eval "$($HOME/bin/fasd --init auto)"
 
-[ -r "$HOME/.smartcd_config" ] && ( [ -n $BASH_VERSION ] || [ -n $ZSH_VERSION ] ) && source ~/.smartcd_config
+## Directory aliases
+export NC=/opt/Data/Personal/NextCloud
 
+
+## docker compose aliases from https://perfectmediaserver.com
+# Tail last 50 lines of docker logs
+alias dtail='docker logs -tf --tail='50' '
+
+# Shorthand, customise docker-compose.yaml location as needed
+# alias dcp='docker-compose -f ~/docker-compose.yaml '
+alias dcp='docker-compose -f ./docker-compose.yaml '
+
+# Remove unused images (useful after an upgrade)
+alias dprune='docker image prune'
+
+# Remove unused images, unused networks *and data* (use with care)
+# alias dprunesys='docker system prune --all'

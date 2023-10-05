@@ -90,3 +90,15 @@ map <F4> :AddHeader<CR>
 
 colors elflord
 
+" vim plug
+"call plug#begin('~/.vim/plugged')
+call plug#begin()
+
+" vim-plug
+Plug 'raghur/vim-ghost', {'do': ':GhostInstall'}
+" Only enabled for Vim 8 (not for Neovim).
+Plug 'roxma/nvim-yarp', v:version >= 800 && !has('nvim') ? {} : { 'on': [], 'for': [] }
+Plug 'roxma/vim-hug-neovim-rpc', v:version >= 800 && !has('nvim') ? {} : { 'on': [], 'for': [] }
+
+call plug#end()
+

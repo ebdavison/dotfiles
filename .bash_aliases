@@ -90,7 +90,8 @@ alias cd-ne="cd /opt/Data/Personal/NextCloud"
 alias cd-so="cd /opt/Data/Software"
 
 #alias tmux="tmux -u"
-alias tmux="systemd-run --scope --user tmux -u "
+alias tmux="tmux -u"
+#alias tmux="systemd-run --scope --user tmux -u "
 
 # docker related
 # # get all docker IPs
@@ -105,3 +106,8 @@ alias dprune='docker image prune'
 
 # Remove unused images, unused networks *and data* (use with care)
 alias dprunesys='docker system prune --all'
+
+
+alias lth='ls -alt | head'
+alias lthh='ls -alth | head'
+

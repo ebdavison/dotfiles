@@ -1,0 +1,11 @@
+let g:netrw_dirhistmax  =10
+let g:netrw_dirhistcnt =9
+let g:netrw_dirhist_9='/home/edavison/.config/my-dashy-conf.yml'
+let g:netrw_dirhist_8='/home/edavison/.ssh'
+let g:netrw_dirhist_7='/opt/Data/Cisco/Dev'
+let g:netrw_dirhist_6='/home/edavison/.bash-git-prompt'
+let g:netrw_dirhist_5='/home/edavison/.ssh'
+let g:netrw_dirhist_4='/home/edavison/.vim'
+let g:netrw_dirhist_3='/opt/Data/Cisco/Hunting'
+let g:netrw_dirhist_2='/opt/Data/Cisco/repos/eddaviso/threathunting/Personnel/eddaviso/utils'
+let g:netrw_dirhist_1='/home/edavison/.ssh'
