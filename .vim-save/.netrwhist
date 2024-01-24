@@ -1,0 +1,5 @@
+let g:netrw_dirhistmax  =10
+let g:netrw_dirhistcnt =3
+let g:netrw_dirhist_3='/opt/Data/Cisco/Hunting'
+let g:netrw_dirhist_2='/opt/Data/Cisco/repos/eddaviso/threathunting/Personnel/eddaviso/utils'
+let g:netrw_dirhist_1='/home/edavison/.ssh'
