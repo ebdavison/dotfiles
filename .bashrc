@@ -19,8 +19,10 @@ export HISTTIMEFORMAT="[%F %T] "
 shopt -s histappend
 
 # for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
-export HISTSIZE=1000
-export HISTFILESIZE=2000
+#export HISTSIZE=1000
+export HISTSIZE=
+#export HISTFILESIZE=2000
+export HISTFILESIZE=
 
 # check the window size after each command and, if necessary,
 # update the values of LINES and COLUMNS.
@@ -160,8 +162,12 @@ function _update_ps1() {
 #export PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND"
 # export PROMPT_COMMAND="_update_ps1; history -a >> $HISTFILE; $PROMPT_COMMAND"
 # export PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND; echo $$ $USER $(history 1) >> ~/.bash_eternal_history"
-PROMPT_COMMAND="_update_ps1; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"' echo $$ $USER \
-	               "$(history 1)" >> ~/.bash_eternal_history'
+
+# EBD 2024-02-24 setting chattr +a on ~/.bash_history to let bash do it's thing
+#                turning off the eternal history for now
+#PROMPT_COMMAND="_update_ps1; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"'echo $$ $USER \
+#	               "$(history 1)" >> ~/.bash_eternal_history'
+PROMPT_COMMAND="_update_ps1; history -a; history -c; history -r; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"
 
 #if [ -f "/opt/Data/Personal/repos/bash-git-prompt/gitprompt.sh" ]; then
 #	GIT_PROMPT_ONLY_IN_REPO=1
@@ -173,7 +179,7 @@ PROMPT_COMMAND="_update_ps1; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"' echo $$ $USER 
 # setup atuin (history search from SQLITE DB)
 # curl https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh -o ~/.bash-preexec.sh
 # echo '[[ -f ~/.bash-preexec.sh ]] && source ~/.bash-preexec.sh' >> ~/.bashrc
-#eval "$(atuin init bash)"
+eval "$(atuin init bash)"
 
 
 # if test -n "$DESKTOP_SESSION"
@@ -188,6 +194,10 @@ eval "$($HOME/bin/fasd --init auto)"
 
 ## Directory aliases
 export NC=/opt/Data/Personal/NextCloud
+export NCIT=/opt/Data/Personal/NextCloud/Documents/IT
+export NCITC=/opt/Data/Personal/NextCloud/Documents/IT\ Clients
+export CI=/opt/Data/Cisco
+export CID=/opt/Data/Cisco/Dev
 
 
 ## docker compose aliases from https://perfectmediaserver.com
@@ -203,3 +213,17 @@ alias dprune='docker image prune'
 
 # Remove unused images, unused networks *and data* (use with care)
 # alias dprunesys='docker system prune --all'
+
+export LIBVA_DRIVER_NAME=iHD
+
+PATH="/home/edavison/perl5/bin${PATH:+:${PATH}}"; export PATH;
+PERL5LIB="/home/edavison/perl5/lib/perl5${PERL5LIB:+:${PERL5LIB}}"; export PERL5LIB;
+PERL_LOCAL_LIB_ROOT="/home/edavison/perl5${PERL_LOCAL_LIB_ROOT:+:${PERL_LOCAL_LIB_ROOT}}"; export PERL_LOCAL_LIB_ROOT;
+PERL_MB_OPT="--install_base \"/home/edavison/perl5\""; export PERL_MB_OPT;
+PERL_MM_OPT="INSTALL_BASE=/home/edavison/perl5"; export PERL_MM_OPT;
+
+[ -f ~/.fzf.bash ] && source ~/.fzf.bash
+
+export JAVA_HOME=$(dirname $(dirname $(readlink $(readlink $(which javac)))))
+export PATH=$PATH:$JAVA_HOME/bin
+export CLASSPATH=.:$JAVA_HOME/jre/lib:$JAVA_HOME/lib:$JAVA_HOME/lib/tools.jar
