@@ -1,0 +1,29 @@
+Get package:
+wget http://rhn-cap1-ams.cisco.com/pub/distributions/ubuntu/latest/packages/ctd_ubuntu.deb
+dpkg --unpack ctd_ubuntu.deb
+mv /var/lib/dpkg/info/ctd.postinst /var/lib/dpkg/info/ctd.postinst.disable
+dpkg --configure ctd
+
+Extract:
+cd /opt/CTD-2.0
+tar xvf payload.tar
+cd payload
+tar xvf anyconnect.tar
+
+Install:
+cd anyconnect/vpn
+./vpn_install.sh
+
+Install Profiles:
+cd /opt/CTD-2.0/payload
+cp -pvi *.xml /opt/cisco/anyconnect/profile/
+
+(OPTIONAL) Install DART:
+cd /opt/CTD-2.0/payload/anyconnect/dart
+./dart_install.sh
+
+So client doesn't get automatically killed
+rm /opt/cisco/anyconnect/script/OnConnect_ac_linux_64R1.sh
+chattr +i /opt/cisco/anyconnect/script
+
+To start: /opt/cisco/anyconnect/bin/vnpui

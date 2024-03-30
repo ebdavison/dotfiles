@@ -1,0 +1,80 @@
+#!/bin/bash -e
+
+_basename=$( basename "$0" )
+_error() { printf 'ERROR: %s\n' "${1?}" >&2; }
+
+_info() { printf 'INFO: %s\n' "${1?}"; }
+
+usage(){
+  printf '%s <query> <cloudloggroups ...>\n' "$_basename"
+  printf 'query cloudwatch suck logs and output the important stuff\n'
+  exit 1
+}
+
+log(){
+  # shellcheck disable=SC2059
+  printf "$@" 1>&2
+}
+
+die(){
+  exit_code=1
+  if [[ $1 =~ ^[0-9][0-9]*$ ]]
+  then
+    exit_code=$1
+    shift
+  fi
+
+  printf "%s\n" "$@"
+  printf "Exiting.\n"
+  exit "$exit_code"
+}
+
+start_query(){
+output=$(aws logs start-query --region "$region" --log-group-names "$log_group" --limit 10000 \
+  --start-time "${start_time}" \
+  --end-time "${end_time}" \
+  --query-string "$query")
+
+log '%s' "$output" | jq .
+printf '%s' "$output" | jq -r .queryId
+}
+
+get_query_results(){
+while true;
+do
+  output=$(aws logs get-query-results --region "$region" --query-id "$qid")
+  log '%s' "$output" | jq .
+  status=$( printf '%s' "$output" | jq -r .status)
+  [[ "$status" == "Complete" ]] && break
+  log '%s\n' "$status"
+done
+
+printf '%s\n' "$output"
+}
+
+export TZ=UTC
+
+log_group=$1
+start_time="$(date -d "$2" +%s)000"
+end_time="$(date -d "$3" +%s)000"
+region=$4
+region=${region:-us-east-1}
+
+filter=$5
+filter=${filter:-filter @timestamp like /./}
+
+# query='fields @timestamp, @message | filter @message like /./ | display @timestamp, @message | sort @timestamp'
+query="$filter | sort @timestamp"
+
+while true; do
+  qid=$( start_query )
+  output=$( get_query_results | jq -r '.results[]|map( { (.field): (.value) } ) |add|"\(."@timestamp") \(."@message")"' | grep . )
+  printf '%s\n' "$output"
+  (( $(printf '%s\n' "$output" | wc -l ) < 10000 )) && break
+  ts=$(printf '%s\n' "$output" | tail -1 | awk '{print $1" "$2}')
+  ms=${ts#*.}
+  start_time=$(date +%s -d "$ts")$ms
+  log '%s' "$ts"
+  log '%s' "$ms"
+  log '%s' "$start_time"
+done

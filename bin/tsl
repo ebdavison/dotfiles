@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+
+set -e
+
+{ [[ -n "$DEBUG" ]] || [[ -n "$SCRIPT_DEBUG" ]]; } && set -x
+
+# shellcheck disable=SC2034
+_basename=$(basename "$0")
+_error() { printf 'ERROR: %s\n' "${1?}" >&2; }
+
+_info() { printf 'INFO: %s\n' "${1?}"; }
+
+usage() {
+  printf 'tsl [ (-n|--name) LOGFILEBASE | (-p|--path) LOGFILEBASEPATH] COMMAND [args ...]\n'
+  printf 'tsl will create a time stamped logfile and execute the program and args\n'
+  printf '  passed to it.  It will also symlink BASENAME to the new logfile\n\n'
+  printf 'E.g.:\n'
+  printf '  tsl shred /usr/bin/my-bash\n'
+  printf '  tsl -n nuked shred /usr/bin/my-bash\n'
+  printf '  tsl -p ~/tmp -n Shred shred /usr/bin/my-bash\n'
+  printf '  tsl --path ~/tmp -n Shred shred /usr/bin/my-bash\n'
+  exit 1
+}
+
+log() {
+  # shellcheck disable=SC2059
+  printf "$@" 1>&2
+}
+
+die() {
+  exit_code=1
+  if [[ $1 =~ ^[0-9][0-9]*$ ]]; then
+    exit_code=$1
+    shift
+  fi
+
+  printf "%s\n" "$@"
+  printf "Exiting.\n"
+  exit "$exit_code"
+}
+
+main() {
+  local name now path logname
+
+  # no args? usage then
+  (($# == 0)) && usage
+
+  while [[ $1 =~ ^- ]]; do
+    case $1 in
+      -h | --help | -help | help)
+        usage
+        ;;
+      -n | --name)
+        name=$2
+        shift 2
+        ;;
+      -p | --path)
+        path=$2
+        shift 2
+        ;;
+    esac
+  done
+
+  basename=$(basename "$1")
+  name=${name:-$basename}
+  path=${path:-~/logs}
+  path=${path%%/}
+  mkdir -p "$path"
+
+  now=$(date +%FT%H.%M.%S.%3N)
+
+  logname="$path/$name-$now"
+
+  if ! [[ -e "$path/$name" ]] || [[ -L "$path/$name" ]]; then
+    # the symlink isn't mandatory, so continue if it fails
+    mv "$path/$name" "$path/$name-prev" 2>/dev/null || true
+    ln -sf "$name-$now" "$path/$name" || true
+  fi
+
+  if command -v ilts >/dev/null 2>&1; then
+    exec nohup ilts -S -E -- "$@" > "$logname" 2>&1 < /dev/null
+  else
+    exec nohup "$@" >"$logname" 2>&1 </dev/null
+  fi
+}
+
+main "$@"

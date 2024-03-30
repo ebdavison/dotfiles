@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+old=$1
+new=$2
+
+sudo ip link set dev "$old" down
+sudo ip link set dev "$old" name "$new"
+sudo ip link set dev "$new" up
+

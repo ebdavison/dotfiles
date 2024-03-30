@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+title=$1
+
+printf "\033]0;%s\007" "$title"
