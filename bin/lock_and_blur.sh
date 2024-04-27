@@ -3,7 +3,7 @@
 lighticon="$HOME/Pictures/padlock-light.png"
 darkicon="$HOME/Pictures/padlock-dark.png"
 tmpbg='/tmp/screen.png'
-image='/home/edavison/Pictures/screen.png'
+image="$HOME/Pictures/screen.png"
 
 # copy lock image to tmpbg
 cp $image $tmpbg
@@ -47,5 +47,5 @@ convert "$tmpbg" -filter Gaussian -thumbnail 20% -sample 500% "$tmpbg"
 convert "$tmpbg" "$icon" -gravity center -composite "$tmpbg"
 
 # lock the screen with the color parameters
-/usr/bin/i3lock "${PARAM[@]}" -i "$tmpbg"
+/usr/bin/env i3lock "${PARAM[@]}" -i "$tmpbg"
 

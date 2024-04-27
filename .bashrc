@@ -179,7 +179,7 @@ PROMPT_COMMAND="_update_ps1; history -a; history -c; history -r; ${PROMPT_COMMAN
 # setup atuin (history search from SQLITE DB)
 # curl https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh -o ~/.bash-preexec.sh
 # echo '[[ -f ~/.bash-preexec.sh ]] && source ~/.bash-preexec.sh' >> ~/.bashrc
-eval "$(atuin init bash)"
+#eval "$(atuin init bash)"
 
 
 # if test -n "$DESKTOP_SESSION"
@@ -216,14 +216,24 @@ alias dprune='docker image prune'
 
 export LIBVA_DRIVER_NAME=iHD
 
-PATH="/home/edavison/perl5/bin${PATH:+:${PATH}}"; export PATH;
-PERL5LIB="/home/edavison/perl5/lib/perl5${PERL5LIB:+:${PERL5LIB}}"; export PERL5LIB;
-PERL_LOCAL_LIB_ROOT="/home/edavison/perl5${PERL_LOCAL_LIB_ROOT:+:${PERL_LOCAL_LIB_ROOT}}"; export PERL_LOCAL_LIB_ROOT;
-PERL_MB_OPT="--install_base \"/home/edavison/perl5\""; export PERL_MB_OPT;
-PERL_MM_OPT="INSTALL_BASE=/home/edavison/perl5"; export PERL_MM_OPT;
+PATH="${PATH:+:${PATH}}"; export PATH;
+export PATH=$PATH:$HOME/bin
 
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
 
-export JAVA_HOME=$(dirname $(dirname $(readlink $(readlink $(which javac)))))
-export PATH=$PATH:$JAVA_HOME/bin
-export CLASSPATH=.:$JAVA_HOME/jre/lib:$JAVA_HOME/lib:$JAVA_HOME/lib/tools.jar
+#export JAVA_HOME=$(dirname $(dirname $(readlink $(readlink $(which javac)))))
+#export PATH=$PATH:$JAVA_HOME/bin:$HOME/bin
+#export CLASSPATH=.:$JAVA_HOME/jre/lib:$JAVA_HOME/lib:$JAVA_HOME/lib/tools.jar
+
+
+# User specific aliases and functions
+if [ -d ~/.bashrc.d ]; then
+	for rc in ~/.bashrc.d/*; do
+		if [ -f "$rc" ]; then
+			. "$rc"
+		fi
+	done
+fi
+
+unset rc
+

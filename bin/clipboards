@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # -selection   selection to access ("primary", "secondary", "clipboard" or "buffer-cut")
 # for i in "primary" "secondary" "clipboard" "buffer-cut" "zebra" "buffer-cut7"

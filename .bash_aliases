@@ -87,6 +87,11 @@ alias mount_ui01fs='sshfs -o idmap=user eddaviso@hunt-ui-01.clg5.amp.ciscolabs.c
 # local directory aliases
 alias cd-ci="cd /opt/Data/Cisco"
 alias cd-ne="cd /opt/Data/Personal/NextCloud"
+alias cd-it="cd /opt/Data/Personal/NextCloud/Documents/IT"
+alias cd-fi="cd /opt/Data/Personal/NextCloud/Documents/Finance"
+alias cd-acct="cd /opt/Data/Personal/NextCloud/Documents/Finance/accounting"
+alias cd-itc="cd /opt/Data/Personal/NextCloud/Documents/IT\ Clients"
+alias cd-rpg="cd /opt/Data/Personal/NextCloud/Documents/IT\ Clients/RPG"
 alias cd-so="cd /opt/Data/Software"
 
 #alias tmux="tmux -u"
@@ -109,5 +114,8 @@ alias dprunesys='docker system prune --all'
 
 
 alias lth='ls -alt | head'
+alias llt='ls -alt'
 alias lthh='ls -alth | head'
+
+alias dm='sudo dmesg --time-format iso'
 

@@ -15,6 +15,9 @@ sudo route del -net 0.0.0.0 gw 10.7.124.217 dev enp0s13f0u1u2u3
 #sudo route add -net 0.0.0.0 gw 10.211.1.1 dev enp0s31f6
 sudo route add -net 0.0.0.0 gw 10.211.1.1 dev if-home
 sudo route add -net 0.0.0.0 gw 10.211.1.1 dev enp0s31f6
+
+sudo route del -net 0.0.0.0 gateway 10.7.124.217 dev enp0s13f0u2u2u3
+
 $HOME/bin/setup-cisco-routes-rev.sh
 route -n
 
