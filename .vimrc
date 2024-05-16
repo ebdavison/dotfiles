@@ -99,6 +99,8 @@ Plug 'raghur/vim-ghost', {'do': ':GhostInstall'}
 " Only enabled for Vim 8 (not for Neovim).
 Plug 'roxma/nvim-yarp', v:version >= 800 && !has('nvim') ? {} : { 'on': [], 'for': [] }
 Plug 'roxma/vim-hug-neovim-rpc', v:version >= 800 && !has('nvim') ? {} : { 'on': [], 'for': [] }
+Plug 'itchyny/lightline.vim'
 
 call plug#end()
 
+set laststatus=2
