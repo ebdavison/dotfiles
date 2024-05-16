@@ -42,8 +42,9 @@ NATDEV=enp0s31f6
 #CISCODEV=enp0s13f0u1u1i5
 #CISCODEV=enp0s20f0u8u1i5
 #CISCODEV=if-talos
-CISCODEV=enp0s13f0u2u2u3
+#CISCODEV=enp0s13f0u2u2u3
 #CISCODEV=enp0s13f0u1u2u3
+CISCODEV=$(ip addr | grep 10.7.124 | gawk '{print $NF}')
 
 if [ "x$OS_TYPE" = "xLinux" ]; then
   #NATIP=$(ip addr show dev wlp2s0 | awk '/inet / {print $2}')
