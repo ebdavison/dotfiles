@@ -219,6 +219,7 @@ export LIBVA_DRIVER_NAME=iHD
 PATH="${PATH:+:${PATH}}"; export PATH;
 export PATH=$PATH:$HOME/bin
 
+# git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && ~/.fzf/install
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
 
 #export JAVA_HOME=$(dirname $(dirname $(readlink $(readlink $(which javac)))))
