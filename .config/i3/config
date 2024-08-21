@@ -46,8 +46,8 @@ floating_modifier $mod
 
 # start a terminal
 #bindsym $mod+Return exec i3-sensible-terminal
-#bindsym $mod+Return exec st -t "Simple Terminal" -f "Source Code Pro:style=Semibold:size=10"
-bindsym $mod+Return exec xterm
+bindsym $mod+Return exec st -t "Simple Terminal" -f "Source Code Pro:style=Semibold:size=10"
+#bindsym $mod+Return exec xterm
 
 # kill focused window
 bindsym $mod+Shift+q kill
@@ -243,10 +243,12 @@ exec xautolock -detectsleep -time 5 -locker "/mnt/fedora/home/edavison/bin/lock_
 
 # startup apps
 exec picom
-exec ~/bin/run_streamdeck.sh
+#exec ~/bin/run_streamdeck.sh
 exec /usr/bin/rescuetime
-exec bluemon-applet
+#exec bluemon-applet
 exec vorta
+exec /opt/Data/Software/companion-x64/companion-launcher
+exec /usr/bin/flameshot
 
 # shutdown / restart / suspend...
 set $mode_system System (l) lock, (e) logout, (s) suspend, (h) hibernate, (r) reboot, (CTRL+s) shutdown
@@ -282,4 +284,5 @@ assign [class="webex"] 2
 assign [class="firefox"] 4
 assign [class="Signal"] 5
 assign [class="thunderbird"] 5
+assign [class="Evolution"] 5
 
