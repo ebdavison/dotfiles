@@ -100,6 +100,7 @@ Plug 'raghur/vim-ghost', {'do': ':GhostInstall'}
 Plug 'roxma/nvim-yarp', v:version >= 800 && !has('nvim') ? {} : { 'on': [], 'for': [] }
 Plug 'roxma/vim-hug-neovim-rpc', v:version >= 800 && !has('nvim') ? {} : { 'on': [], 'for': [] }
 Plug 'itchyny/lightline.vim'
+Plug 'dense-analysis/ale'
 
 call plug#end()
 
