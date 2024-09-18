@@ -4,6 +4,18 @@ appConfig:
   - theme: adventure-basic
     language: en
 sections: # An array of sections
+- name: widgets
+  widgets:
+  - type: clock
+    options:
+      timeZone: US/Central
+      format: en-US
+      hideDate: false
+  - type: weather
+    options:
+      apiKey: 13443dfeba7f13b38804b59bd4197f40
+      city: Dallas
+      units: imperial
 - name: Example Section
   icon: far fa-rocket
   items:
@@ -18,7 +30,7 @@ sections: # An array of sections
 - name: Local Services
   items:
   - title: Firewall
-    icon: favicon
+  #icon: favicon
     url: http://10.211.1.1/
   - title: Home Assistant
     url: https://owh5p8ha3mlru0nflm678592yj8dbkex.ui.nabu.casa/lovelace/default_view
@@ -30,6 +42,8 @@ sections: # An array of sections
     url: http://localhost:10082/smokeping/?target=_charts
   - title: Portainer
     url: http://localhost:9000/#!/2/docker/containers
+  - title: gitea
+    url: http://10.211.1.6:18009/
 - name: Productivity
   items:
   - title: Devmarks
@@ -44,10 +58,24 @@ sections: # An array of sections
     url: http://localhost:5000/
   - title: 17Track
     url: https://t.17track.net
+  - title: Time Zone Converter
+    url: https://www.timeanddate.com/worldclock/converter.html?iso=20240918T014400&p1=70&p2=136&p3=236
 - name: Entertainment
   items:
   - title: Jellyfin
-    url: http://10.211.1.6:8096/web/index.html`
+    url: http://10.211.1.6:8096/web/index.html
+- name: Work, WFG
+  items:
+  - title: My WFG
+    url: https://www.mywfg.com/
+  - title: Infinity Academy (Micheal)
+    url: https://courses.infinityacademy.us/courses/welcome
+  - title: Sherif calendar
+    url: https://cal.com/sherifghaffar
+  - title: BCS Pro
+    url: https://bscpro.com/auth/login
+  - title: ExamFX
+    url: https://portal.examfx.com/login
 - name: Work, Cisco
   items:
   - title: AWS Cisco SSO
@@ -64,6 +92,16 @@ sections: # An array of sections
     url: https://funnel-prod-2.tgsre.net:5601/
   - title: ES Cluster (scaling)
     url: https://es-coord-scaling-003.tgsre.net:5601/app/home
+  - title: Airflow failed hunt DAGs
+    url: https://airflow.tgsre.net/dagrun/list/?_flt_0_dag_id=hunt_&_flt_2_state=failed
+  - title: Airflow failed hunt tasks
+    url: https://airflow.tgsre.net/taskinstance/list/?_flt_0_dag_id=hunt_&_flt_2_state=failed
+  - title: windows-auth
+    url: https://windows-auth.cisco.com/
+  - title: OWA
+    url: https://outlook.office.com/mail/
+  - title: Synapse (Talos)
+    url: https://optic.talos.cisco.com/research
 - name: Work, Consulting
   items:
   - title: Invoice Ninja
@@ -71,23 +109,33 @@ sections: # An array of sections
   - title: Toggl Tracker
     url: https://track.toggl.com/timer
   - title: Kimai Tracker
-    url: https://http://webs.edandmonique.org:8001/
+    url: http://webs.edandmonique.org:8001/
+  - title: Uptime Kuma
+    url: http://webs.edandmonique.org:3002/
 - name: Charity
   items:
   - title: IAS WUS
     url: https://www.iasmembership.org/donation/us-ias-members-trust-donation.html?office=wus
+  - title: Flag Payment
+    url: https://signup.flag.today
+  - title: Flag Payment (Marla) 
+    url: https://signup.flag.today/s/marla
 - name: Health
   items:
   - title: Baylor Scott and White
     url: https://my.bswhealth.com/login
   - title: Health Equity (HSA)
     url: https://my.healthequity.com/Member/AccountSummary.aspx?1
+  - title: Fullscript
+    url: https://us.fullscript.com/
 - name: Health, Monique
   items:
   - title: Femme Center Dallas
     url: https://8511.portal.athenahealth.com/
   - title: Get Healthie
     url: https://secure.gethealthie.com/
+  - title: ICHR Shopify
+    url: https://reverse-my-condition-texas.myshopify.com/account/login
 - name: Email
   items:
   - title: Personal Webmail
