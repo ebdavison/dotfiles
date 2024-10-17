@@ -21,6 +21,9 @@
       "segments": [
         {
           "foreground": "p:yellow",
+          "foreground_templates": [
+            "{{ if .Root }}red{{ end }}"
+          ],
           "style": "plain",
           "template": "{{ .UserName }}@{{ .HostName }} ",
           "type": "session"
