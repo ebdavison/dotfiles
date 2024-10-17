@@ -156,6 +156,8 @@ function _update_ps1() {
         #export PS1='${dts}${line:${#dts}}\[\e[0m\]\r-(\[\e[0m\]\t\[\e[0m\])-(\[\e[0;36m\]\u\[\e[0;36m\]@\[\e[0;36m\]\h\[\e[0m\])-(\[\e[0;48;5;238m\]\w\[\e[0m\])-(\[\e[0;31m\]$?\[\e[0m\])-(\[\e[0;41m\]\[\e[1;41m\]$(git branch 2>/dev/null | grep '"'"'^*'"'"' | colrm 1 2)\[\e[0;41m\]\[\e[0m\])- \$\[\e[0m\] ';
 #        export PS1='-(\[\e[0m\]\t\[\e[0m\])-(\[\e[0;36m\]\u\[\e[0;36m\]@\[\e[0;36m\]\h\[\e[0m\])-(\[\e[0;48;5;238m\]\w\[\e[0m\])-(\[\e[0;31m\]$?\[\e[0m\])-(\[\e[0;41m\]\[\e[1;41m\]$(git branch 2>/dev/null | grep '"'"'^*'"'"' | colrm 1 2)\[\e[0;41m\]\[\e[0m\])- \$\[\e[0m\] ';
         export PROMPT1='-(\[\e[0m\]\t\[\e[0m\])-(\[\e[0;36m\]\u\[\e[0;36m\]@\[\e[0;36m\]\h\[\e[0m\])-(\[\e[0;48;5;238m\]\w\[\e[0m\])-(\[\e[0;31m\]$?\[\e[0m\])-(\[\e[0;41m\]\[\e[1;41m\]$(git branch 2>/dev/null | grep '"'"'^*'"'"' | colrm 1 2)\[\e[0;41m\]\[\e[0m\])- \$\[\e[0m\] ';
+	# PS1='+-\[\e[38;5;39m\][\u from \h][\D{%Y-%m-%d at }\t]\n+-[\[\e[38;5;43m\]\w\[\e[38;5;39m\]]\n\$\[\e[0m\] '
+	# PROMPT_COMMAND='PS1_CMD1=$(__git_ps1 " (%s)")'; PS1='\[\e[38;5;39m\]+-\[\e[38;5;33m\][\[\e[38;5;39m\]\u from \h][\D{%Y-%m-%d at }\t]\n+-[\[\e[38;5;43m\]\w\[\e[38;5;39m\]]\[\e[0m\]${PS1_CMD1}\n\[\e[38;5;39m\]\$\[\e[0m\] '
 }
 
 
@@ -188,7 +190,10 @@ PROMPT_COMMAND="_update_ps1; history -a; history -c; history -r; ${PROMPT_COMMAN
 
 # eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/ys.omp.json)"
 # eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/stelbent.minimal.omp.json)"
-eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/tokyo.omp.json)"
+# eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/tokyo.omp.json)"
+# eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/probua.minimal.omp.json)"
+# eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/onehalf.minimal.omp.json)"
+eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/ebd.minimal.omp.json)"
 
 eval "$($HOME/bin/fasd --init auto)"
 
@@ -237,4 +242,12 @@ if [ -d ~/.bashrc.d ]; then
 fi
 
 unset rc
+
+
+[ -r "$HOME/.smartcd_config" ] && ( [ -n $BASH_VERSION ] || [ -n $ZSH_VERSION ] ) && source ~/.smartcd_config
+
+# from https://bash-prompt-generator.org/
+# PS1='+-\[\e[38;5;39m\][\u from \h][\D{%Y-%m-%d at }\t]\n+-[\[\e[38;5;43m\]\w\[\e[38;5;39m\]]\n\$\[\e[0m\] '
+# PROMPT_COMMAND='PS1_CMD1=$(__git_ps1 " (%s)")'; PS1='\[\e[38;5;39m\]+-\[\e[38;5;33m\][\[\e[38;5;39m\]\u from \h][\D{%Y-%m-%d at }\t]\n+-[\[\e[38;5;43m\]\w\[\e[38;5;39m\]]\[\e[0m\]${PS1_CMD1}\n\[\e[38;5;39m\]\$\[\e[0m\] '
+
 
