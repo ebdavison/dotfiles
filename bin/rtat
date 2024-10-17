@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+
+set -e
+
+die(){
+  echo "$@" >&2
+  exit 1
+}
+
+set_active_window_vars(){
+  win_id=$(xprop -root _NET_ACTIVE_WINDOW | awk '{print $5}')
+  win_type=$(xprop -id "$win_id" WM_CLASS | awk '{print $3}' | tr -d '",')
+}
+
+target=$1
+label=$2
+shift 2 || true
+
+hostname=${target##*@}
+# No longer use $user
+# user=${target%%@*}
+
+# label=${label:-$hostname}
+# label="${label,,}"
+
+# If in tmux, do we already have a local window for this host?
+#if [[ $TMUX ]] && tmux select-window -t $user
+#then
+#  exit 0
+#fi
+
+if [[ $TMUX ]]
+then
+  if [[ $TMUX_PANE ]]
+  then
+    # shellcheck disable=SC2034
+    OLD_WIN_NAME=$(tmux list-windows | grep '\*' | sed -e 's/^[0-9][0-9]*: //' -e 's/\*.*//')
+    tmux rename-window -t "$TMUX_PANE" "$label"
+  else
+    tmux rename-window "$label"
+  fi
+fi
+
+ssh "$target" hostname || die "Can't connect to $target"
+
+#user=$(printf "%s" "$hostname" | egrep -o '^[^@]*@') || true
+#user=$(printf "%s" "$hostname" | egrep -o '^[^@]*@' | sed -s 's/@//') || true
+
+markname="$target"
+xtermtitle="$markname"
+
+case $hostname in
+  platinum.solid-constructs.com)
+    markname=IRC
+    ;;
+  *)
+    ;;
+esac
+
+if [[ -n "$DISPLAY" ]]; then
+  i3-msg mark "$markname" || true
+  sleep 1
+  set_active_window_vars
+  #xtb "$xtermtitle"
+  if [[ "$win_type" == "xterm" ]]; then
+    xprop -id "$win_id" -f WM_WINDOW_ROLE 8s -set WM_WINDOW_ROLE "$target"
+  fi
+fi
+
+set +e
+# shellcheck disable=SC2086
+# [[ -n "$label" ]] && label="-t $label"
+ssh -t "$target" bin/tat $label
+rv=$?
+#xtb bash
+bash
+
+#if [[ "$TMUX" ]]
+#then
+#  if [[ "$TMUX_PANE" ]]
+#  then
+#    tmux rename-window -t "$TMUX_PANE" "$OLD_WIN_NAME"
+#  else
+#    tmux rename-window "$OLD_WIN_NAME"
+#  fi
+#fi
+
+exit $rv

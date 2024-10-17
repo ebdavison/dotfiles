@@ -1,12 +1,12 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -e
 
-PATH=$PATH:/usr/local/bin
+PATH=~/bin:$PATH:/usr/local/bin
 
 # shellcheck disable=SC2155
 # shellcheck disable=SC2162
 
-export HOSTNAME=$(hostname -s)
+export HOSTNAME=$(hostname -s || hostname)	
 
 if [[ $# -ne 0 ]]
 then
