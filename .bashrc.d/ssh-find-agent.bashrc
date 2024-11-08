@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 # Copyright (C) 2011 by Wayne Walker <wwalker@solid-constructs.com>
 #
@@ -29,6 +29,7 @@ sfa_init() {
   _live_agent_list=()
   _live_agent_sock_list=()
   _sorted_live_agent_list=()
+  _sfa_timeout=5.0
 
   # Set $sfa_path array to the dirs to search for ssh-agent sockets
   sfa_set_path
@@ -74,19 +75,20 @@ sfa_debug() {
 }
 
 sfa_find_all_agent_sockets() {
-  _ssh_agent_sockets=$(
-    find "${sfa_path[@]}" -maxdepth 2 -type s -name agent.\* 2>/dev/null | grep '/ssh-.*/agent.*'
-    find "${sfa_path[@]}" -maxdepth 2 -type s -name S.gpg-agent.ssh 2>/dev/null | grep '/gpg-.*/S.gpg-agent.ssh'
-    find "${sfa_path[@]}" -maxdepth 2 -type s -name ssh 2>/dev/null | grep '/keyring-.*/ssh$'
-    find "${sfa_path[@]}" -maxdepth 2 -type s -regex '.*/ssh-.*/agent..*$' 2>/dev/null
-  )
-  sfa_debug "$_ssh_agent_sockets"
+  _ssh_agent_sockets=($(
+    find "${sfa_path[@]}" -maxdepth 2 -type s -name agent.\* \
+      -o -name S.gpg-agent.ssh -o -name ssh -o -regex '.*/ssh-.*/agent..*$' \
+      2>/dev/null | grep -E \
+      '/ssh-.*/agent.*|/gpg-  .*/S.gpg-agent.ssh|/keyring-.*/ssh$|.*/ssh-.*/agent..*$'
+  ))
+
+  sfa_debug "${_ssh_agent_sockets[@]}"
 }
 
 sfa_test_agent_socket() {
   local socket=$1
   local output
-  output=$(SSH_AUTH_SOCK=$socket timeout 0.4 ssh-add -l 2>&1)
+  output=$(SSH_AUTH_SOCK=$socket timeout "$_sfa_timeout" ssh-add -l 2>&1)
   result=$?
 
   [[ "$output" == "error fetching identities: communication with agent failed" ]] && result=2
@@ -130,7 +132,7 @@ sfa_test_agent_socket() {
 }
 
 sfa_verify_sockets() {
-  for i in $_ssh_agent_sockets; do
+  for i in "${_ssh_agent_sockets[@]}"; do
     sfa_test_agent_socket "$i"
   done
 }
@@ -166,7 +168,7 @@ sfa_print_choose_menu() {
     i=$((i + 1))
     sock=${agent/*:/}
     if [[ "$1" = "-i" ]]; then
-      _live_agent_sock_list[$i]=$sock
+      _live_agent_sock_list[i]=$sock
 
       printf '#%i)\n' "$i"
       printf '    export SSH_AUTH_SOCK=%s\n' "$sock"
