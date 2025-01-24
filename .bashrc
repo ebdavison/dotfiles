@@ -169,7 +169,8 @@ function _update_ps1() {
 #                turning off the eternal history for now
 #PROMPT_COMMAND="_update_ps1; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"'echo $$ $USER \
 #	               "$(history 1)" >> ~/.bash_eternal_history'
-PROMPT_COMMAND="_update_ps1; history -a; history -c; history -r; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"
+# PROMPT_COMMAND="_update_ps1; history -a; history -c; history -r; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"
+PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"
 
 #if [ -f "/opt/Data/Personal/repos/bash-git-prompt/gitprompt.sh" ]; then
 #	GIT_PROMPT_ONLY_IN_REPO=1
@@ -195,7 +196,7 @@ PROMPT_COMMAND="_update_ps1; history -a; history -c; history -r; ${PROMPT_COMMAN
 # eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/onehalf.minimal.omp.json)"
 eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/ebd.minimal.omp.json)"
 
-eval "$($HOME/bin/fasd --init auto)"
+# eval "$($HOME/bin/fasd --init auto)"
 
 ## Directory aliases
 export NC=/opt/Data/Personal/NextCloud
