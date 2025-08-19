@@ -254,11 +254,8 @@ exec /usr/bin/rescuetime
 exec vorta
 exec /opt/Data/Software/companion-x64/companion-launcher
 #exec /usr/bin/flameshot
-<<<<<<< HEAD
 # Start xss-lock with xsecurelock
 exec --no-startup-id xss-lock --transfer-sleep-lock -- xsecurelock
-=======
->>>>>>> refs/remotes/origin/master
 
 # shutdown / restart / suspend...
 set $mode_system System (l) lock, (e) logout, (s) suspend, (h) hibernate, (r) reboot, (CTRL+s) shutdown
