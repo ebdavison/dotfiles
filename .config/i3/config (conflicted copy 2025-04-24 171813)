@@ -46,8 +46,7 @@ floating_modifier $mod
 
 # start a terminal
 #bindsym $mod+Return exec i3-sensible-terminal
-#bindsym $mod+Return exec st -t "Simple Terminal" -f "Source Code Pro:style=Semibold:size=10"
-bindsym $mod+Return exec /usr/bin/ghostty
+bindsym $mod+Return exec st -t "Simple Terminal" -f "Source Code Pro:style=Semibold:size=10"
 #bindsym $mod+Return exec xterm
 
 # kill focused window
@@ -244,7 +243,7 @@ exec --no-startup-id lxpolkit
 
 # lock screen
 # https://michaelabrahamsen.com/posts/custom-lockscreen-i3lock/
-#exec xautolock -detectsleep -time 5 -locker "/mnt/fedora/home/edavison/bin/lock_and_blur.sh" -notify 30 -notifier "notify-send -u critical -t 10000 -- 'locking screen in 30 seconds'"
+exec xautolock -detectsleep -time 5 -locker "/mnt/fedora/home/edavison/bin/lock_and_blur.sh" -notify 30 -notifier "notify-send -u critical -t 10000 -- 'locking screen in 30 seconds'"
 
 # startup apps
 exec picom
@@ -254,8 +253,6 @@ exec /usr/bin/rescuetime
 exec vorta
 exec /opt/Data/Software/companion-x64/companion-launcher
 #exec /usr/bin/flameshot
-# Start xss-lock with xsecurelock
-exec --no-startup-id xss-lock --transfer-sleep-lock -- xsecurelock
 
 # shutdown / restart / suspend...
 set $mode_system System (l) lock, (e) logout, (s) suspend, (h) hibernate, (r) reboot, (CTRL+s) shutdown
@@ -292,9 +289,4 @@ assign [class="firefox"] 4
 assign [class="Signal"] 5
 assign [class="thunderbird"] 5
 assign [class="Evolution"] 5
-assign [class="telegram"] 6
-assign [class="Youp"] 6
-assign [class="vscode"] 7
-assign [class="chromium"] 9
-
 
