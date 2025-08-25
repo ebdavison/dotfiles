@@ -297,4 +297,8 @@ assign [class="Youp"] 6
 assign [class="vscode"] 7
 assign [class="chromium"] 9
 
+# got from bashbunni
+# print screen using flameshot
+bindsym $mod+Print --release exec --no-startup-id flameshot screen
+bindsym $mod+Shift+Print exec --no-startup-id flameshot gui
 
