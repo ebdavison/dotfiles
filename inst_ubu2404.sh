@@ -2,7 +2,7 @@
 # git clone https://www.github.com/ebdavison/dotfiles.git
 sudo snap refresh firefox
 cd $HOME/Downloads/
-sudo apt install i3 polybar
+sudo apt install i3 polybar rofi
 sudo apt install lyx vim wget git p7zip-full screen tmux curl
 wget "https://github.com/mkasberg/ghostty-ubuntu/releases/download/1.2.0-0-ppa2/ghostty_1.2.0-0.ppa2_amd64_24.04.deb"
 sudo apt install ./ghostty_1.2.0-0.ppa2_amd64_24.04.deb 
