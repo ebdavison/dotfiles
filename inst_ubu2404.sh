@@ -3,7 +3,7 @@
 sudo snap refresh firefox
 cd $HOME/Downloads/
 sudo apt install -y i3 polybar rofi xsecurelock
-sudo apt install -y lyx vim wget git p7zip-full screen tmux curl
+sudo apt install -y lyx vim wget git p7zip-full screen tmux curl flameshot
 sudo apt install -y arandr libreoffice
 sudo apt install -y evolution evolution-data-server evolution-plugin-bogofilter
 sudo apt install -y ./ghostty_1.2.0-0.ppa2_amd64_24.04.deb
