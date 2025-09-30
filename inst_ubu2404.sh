@@ -3,7 +3,7 @@
 sudo snap refresh firefox
 cd $HOME/Downloads/
 sudo apt install -y i3 polybar rofi xsecurelock
-sudo apt install -y lyx vim wget git p7zip-full screen tmux curl flameshot
+sudo apt install -y lyx vim wget git p7zip-full screen tmux curl flameshot neofetch
 sudo apt install -y arandr libreoffice
 sudo apt install -y evolution evolution-data-server evolution-plugin-bogofilter
 sudo apt install -y ./ghostty_1.2.0-0.ppa2_amd64_24.04.deb
@@ -16,6 +16,10 @@ curl -s https://ohmyposh.dev/install.sh | bash -s
 
 # install pyenv
 curl https://pyenv.run | bash
+pyenv install 3.13.5
+sudo apt -y install python3.12-venv
+pyenv vitualenv 3.13.5 edavison
+pyenv activate edavison
 
 # install docker
 # Add Docker's official GPG key:
@@ -36,3 +40,12 @@ sudo groupadd docker
 sudo usermod -aG docker $USER
 sudo systemctl enable docker.service
 sudo systemctl enable containerd.service
+
+# deskflow
+flatpak install deskflow
+
+# bitwarden cli
+wget "https://git.tozt.net/rbw/releases/deb/rbw_1.14.1_amd64.deb"
+sudo apt install ./rbw_1.14.1_amd64.deb
+pip3 install rofi-rbw
+
