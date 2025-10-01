@@ -2,8 +2,8 @@
 # git clone https://www.github.com/ebdavison/dotfiles.git
 sudo snap refresh firefox
 cd $HOME/Downloads/
-sudo apt install -y i3 polybar rofi xsecurelock
-sudo apt install -y lyx vim wget git p7zip-full screen tmux curl flameshot neofetch
+sudo apt install -y i3 polybar rofi xsecurelock blueman
+sudo apt install -y lyx vim wget git p7zip-full screen tmux curl flameshot neofetch syncthing
 sudo apt install -y arandr libreoffice
 sudo apt install -y evolution evolution-data-server evolution-plugin-bogofilter
 sudo apt install -y ./ghostty_1.2.0-0.ppa2_amd64_24.04.deb
@@ -13,6 +13,7 @@ sudo apt install -y make build-essential libssl-dev zlib1g-dev libbz2-dev librea
 wget "https://github.com/mkasberg/ghostty-ubuntu/releases/download/1.2.0-0-ppa2/ghostty_1.2.0-0.ppa2_amd64_24.04.deb"
 git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && ~/.fzf/install
 curl -s https://ohmyposh.dev/install.sh | bash -s
+curl https://getcroc.schollz.com | bash
 
 # install pyenv
 curl https://pyenv.run | bash
