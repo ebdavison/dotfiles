@@ -255,4 +255,15 @@ export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init - bash)"
 
+# Install zoxide
+# fedora: dnf install zoxide
+# ubuntu:
+#   sudo apt isntall rustup
+#   rustup default stable
+#   cargo install zoxide --locked
+export PATH="$PATH:$HOME/.cargo/bin"
 eval "$(zoxide init bash)"
+
+# opencode
+export PATH=/home/eddaviso/.opencode/bin:$PATH
+

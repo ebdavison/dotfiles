@@ -50,3 +50,8 @@ wget "https://git.tozt.net/rbw/releases/deb/rbw_1.14.1_amd64.deb"
 sudo apt install ./rbw_1.14.1_amd64.deb
 pip3 install rofi-rbw
 
+# rust / cargo / zoxide
+sudo apt install rustup
+rustup default stable
+cargo install zoxide --locked
+
