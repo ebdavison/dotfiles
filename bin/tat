@@ -19,7 +19,7 @@ case "$i" in
   0) tmux new-session -s "$HOSTNAME";;
   1) tmux attach ;;
   *) tmux list-sessions | cat -n
-    echo "Enter selection number"
+    echo "Enter selection number, or, 0 to create new session:"
     read -r s
     [[ "$s" = "0" ]] && exec tmux new-session -s "$HOSTNAME"
     target_session=$(tmux list-sessions | head -n "$s" | tail -1 | sed -e 's/:.*//')
