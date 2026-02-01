@@ -42,6 +42,8 @@ sections: # An array of sections
     url: https://rivendell.edandmonique.org/
   - title: ChangeDetection.io
     url: http://localhost:5000/
+  - title: 17Track
+    url: https://t.17track.net
 - name: Entertainment
   items:
   - title: Jellyfin
@@ -52,6 +54,8 @@ sections: # An array of sections
     url: https://cloudsso.cisco.com/idp/startSSO.ping?PartnerSpId=https://signin.aws.amazon.com/saml
   - title: GHE, Hunt Platform
     url: https://github.threatbuild.com/threatgrid/hunt_platform
+  - title: GHE, AWS ES Hunting
+    url: https://github.threatbuild.com/eddaviso/aws-es-hunting
   - title: Grafana (ES Data Nodes)
     url: https://grafana.tgsre.net:3000/
   - title: Hunt Airflow
@@ -66,6 +70,10 @@ sections: # An array of sections
     url: https://invoicing.co
   - title: Toggl Tracker
     url: https://track.toggl.com/timer
+  - title: Kimai Tracker
+    url: https://http://webs.edandmonique.org:8001/
+  - title: Uptime Kuma
+    url: http://webs.edandmonique.org:3002/dashboard
 - name: Charity
   items:
   - title: IAS WUS
@@ -85,8 +93,6 @@ sections: # An array of sections
 - name: Email
   items:
   - title: Personal Webmail
-    url: https://mordor.edandmonique.org/webmail/?_task=mail&_mbox=INBOX
+    url: https://box.edandmonique.org/mail
   - title: Admin
-    url: https://mordor.edandmonique.org/admin/ui/login
-  - title: Admin / Stats
-    url: https://mordor.edandmonique.org/admin/antispam
+    url: https://box.edandmonique.org/admin
