@@ -1,0 +1,18 @@
+#!/bin/bash -ex
+
+cd ~/git/nerd-dictation
+
+case $1 in
+  begin|on)
+    ./nerd-dictation begin --vosk-model-dir=./model &
+    ;;
+  end|off)
+    ./nerd-dictation end
+    ;;
+  cancel)
+    ./nerd-dictation cancel
+    ;;
+  *)
+    printf "Wrong answer, dying...\n"
+    exit 1
+esac

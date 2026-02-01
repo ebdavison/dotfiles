@@ -1,0 +1,240 @@
+#!/bin/bash -e
+
+debug=0
+# set a default exit_code just in case
+exit_code=126 
+
+# { [[ -n "$DEBUG" ]] || [[ -n "$SCRIPT_DEBUG" ]] ;} && set -x
+
+_basename=$( basename "$0" )
+
+_dbg(){
+  (( debug > 0 )) && _error "$@"
+  return 0
+}
+
+_error() { printf 'ERROR: %s\n' "${1?}" >&2; }
+
+_info() { printf 'INFO: %s\n' "${1?}"; }
+
+_usage(){
+  exit_code=$1
+  exit_code=${exit_code:-0}
+  printf '%s [-t|--timeout <SECONDS>] [-p|--path <path>] [-n|--name <NAME>] COMMAND [ARGS...]\n' "$_basename"
+  printf '%s will:\n' "$_basename"
+  printf '   automate logging (with timestamps per line; and start and end lines,:\n'
+  printf '   and a line showing the command line),:\n'
+  printf '   and notify prometheus at the start and end of each cron job\n'
+  printf 'E.g.:\n'
+  printf '    %s --timeout 60 --path /var/log/apple-peeler --name apple-peeler peel-the-apples apple{1..4}\n' "$_basename"
+  printf 'Will create a logfile /var/log/apple-peeler/apple-peeler-2023-11-12_14:35:47.354\n'
+  printf '  and execute "peel-the-apples apple1 apple2 apple3 apple4"\n'
+  printf '\n'
+  exit "$exit_code"
+}
+
+_log(){
+  # shellcheck disable=SC2059
+  printf "$@" 1>&2
+}
+
+_die(){
+  exit_code=1
+  if [[ $1 =~ ^[0-9][0-9]*$ ]]
+  then
+    exit_code=$1
+    shift
+  fi
+
+  printf "%s\n" "$@"
+  printf "Exiting.\n"
+  _usage "$exit_code"
+}
+
+#####################
+# User functions
+
+_debug_setup(){
+  (( debug == 0 )) && return
+  set -x
+}
+
+_set_domain(){
+  domain=$(hostname -f | \egrep -o '\..*tgsre.net$')
+  ENV=$(curl -s -S 169.254.169.254/latest/meta-data/placement/region)
+}
+
+_set_env(){
+  export ENV
+  ENV=$(curl -s -S 169.254.169.254/latest/meta-data/placement/region)
+}
+
+_set_prometheus_uri(){
+  [[ "$PROMETHEUS_URI" ]] && return
+  export PROMETHEUS_URI
+  if [[ "$PROMETHEUS_HOSTNAME" ]]; then
+    PROMETHEUS_URI="http://$PROMETHEUS_HOSTNAME:9091"
+  else
+    PROMETHEUS_URI="http://blackhole.deepstall.com:9091"
+  fi
+}
+
+_set_user(){
+  export USER=${USER:-$LOGNAME}
+  [[ "$USER" ]] && return
+  _die 'Neither USER, nor LOGNAME, was set. Exiting.\n'
+}
+
+_set_name(){
+  name=${name:="$hostname_$1"}
+}
+
+_set_path(){
+  _set_user
+  path=${path:="/var/log/kairos/$USER/$today/$hostname/$name"}
+}
+
+_open_log_file(){
+  mkdir -p "$path"
+  fullpath="$path/${name}_$start_time"
+  _dbg '%s\n' "$fullpath"
+  exec > >(ilts -S -E > "$fullpath") 2>&1
+}
+
+_start_messages(){
+  local message
+  message=$(_start_metric_message)
+  _send_metric "$message"
+  printf 'Sent start metrics to Prometheus Pushgateway.\n'
+}
+
+_start_metric_message(){
+  message="
+  # TYPE cron_job_start gauge
+  cron_job_start{command=\"$basename\", hostname=\"$hostname\", start_time=\"$start_time\"} $start_epoch
+  # TYPE cron_job_timeout gauge
+  cron_job_timeout{command=\"$basename\", hostname=\"$hostname\", start_time=\"$start_time\"} $timeout"
+  printf '%s\n' "$message"
+  return
+}
+
+_end_metric_message(){
+  # single source of truth - duration vs start - end
+  duration=$(calc "$end_epoch" - "$start_epoch")
+  message="
+  # TYPE cron_job_end gauge
+  cron_job_end{command=\"$basename\", hostname=\"$hostname\", start_time=\"$start_time\"} $end_epoch
+  # TYPE cron_job_duration gauge
+  cron_job_duration{command=\"$basename\", hostname=\"$hostname\", start_time=\"$start_time\"} $duration
+  # TYPE cron_job_exit_code gauge
+  cron_job_exit_code{command=\"$basename\", hostname=\"$hostname\", start_time=\"$start_time\"} $exit_code"
+  printf '%s\n' "$message"
+  _dbg "$message"
+  return
+}
+
+_send_metric(){
+  _set_prometheus_uri
+  job="$basename-$hostname"
+  message=$1
+  # FIXME - what if message is empty?
+  printf '%s\n' "$message" | curl -s -S --data-binary @- "$PROMETHEUS_URI/metrics/job/$job/instance/$hostname"
+}
+
+_run_job(){
+  printf 'running:'
+  printf '<%s>\n' "$@"
+  set +e
+  timeout "$timeout" "$@"
+  exit_code=$?
+  set -e
+}
+
+_end_messages(){
+  local message
+  message=$(_end_metric_message)
+  printf '\n\nJob run complete. Job exited with <%s>.\n\n\n' "$exit_code"
+  _send_metric "$message"
+  printf 'Sent end metrics to Prometheus Pushgateway.\n'
+}
+
+
+#####################
+# Execution begins:
+
+#####################
+# initialize variables
+debug=${debug:-0}
+_debug_setup
+  
+path=
+name=
+hostname=$(hostname -f)
+timeout=58 # seconds, in case this is a minutely cron job
+start_time="$(date +%FT%T.%3N)"
+start_epoch="$(date +%s.%3N)"
+today="$(date '+%Y/%m/%d')"
+
+# If no cmd line args, print usage
+(( $# == 0 )) && _usage
+
+while :; do
+  case $1 in 
+    -h | --help)
+      _usage
+      ;;
+    -t | --timeout)
+      timeout=$2
+      shift
+      ;;
+    --timeout=?*)
+      timeout=${1#*=}
+      ;;
+    -n | --name)
+      name=$2
+      shift
+      ;;
+    --name=?*)
+      name=${1#*=}
+      ;;
+    -p | --path)
+      path=$2
+      shift
+      ;;
+    --path=?*)
+      path=${1#*=}
+      ;;
+    -d | --debug)
+      debug=1
+      ;;
+    --)                  # End of all options
+      shift
+      break
+      ;;
+    -?*)
+      _die 'Unknown option <%s>\n' "$1" >&2
+      ;;
+    *)                   # Default case: No more options, so break out of the loop.
+      break
+      ;;
+  esac
+
+  shift                # shift off the option we just handled
+done
+
+# now that we consumed the arguments
+basename=$(basename "$1")
+
+# _set_env
+_set_name "$1"
+_set_path
+_open_log_file
+# set hostname, start_time, start_epoch (float), basename
+_start_messages
+_run_job "$@"
+# end_time="$(date +%FT%T.%3N)"
+end_epoch="$(date +%s.%3N)"
+# set hostname, end_time, end_epoch (float), basename, exit_code
+_end_messages
+
+exit "$exit_code"

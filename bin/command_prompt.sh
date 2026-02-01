@@ -214,6 +214,9 @@ function promptcmd () {
         fi
     fi
     PS1="${PS1} }\$\[${COLOR_DEFAULT}\] "
+
+    # echo PROMPT_COMMAND: $PROMPT_COMMAND
+    # echo PS1: $PS1
 }     
 
 # Trim working dir to 1/4 the screen width
@@ -253,7 +256,7 @@ function load_prompt () {
     else
         export DAY=$(date +%A)
         PROMPT_COMMAND=promptcmd
-     fi 
+    fi 
     export PS1 PROMPT_COMMAND
 
     export HISTTIMEFORMAT="%s "

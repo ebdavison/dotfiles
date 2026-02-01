@@ -1,0 +1,17 @@
+#!/bin/bash
+
+if pgrep -af nerd-dictation > /dev/null 2>&1; then
+  #  "icon": "sun",
+  printf '
+  {
+    "state": "Critical",
+    "text": "DICTATION IS LIVE"
+  }\n'
+else
+  printf '
+  {
+    "state": "Good",
+    "text": ""
+  }\n'
+fi
+
