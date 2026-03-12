@@ -267,3 +267,43 @@ eval "$(zoxide init bash)"
 # opencode
 export PATH=/home/eddaviso/.opencode/bin:$PATH
 
+showroute() {
+  echo "Kernel IP routing table"
+  printf "%-18s %-18s %-18s %-5s %-5s %-5s %-5s %s\n" \
+    "Destination" "Gateway" "Genmask" "Flags" "Metric" "Ref" "Use" "Iface"
+
+  ip route show | awk '
+  function dotquad(bits,    i,out) {
+    out=""
+    for(i=24;i>=0;i-=8) out=out int((bits/(2^i))%256) (i>0?".":" ")
+    return out
+  }
+  {
+    dest=""; gw="0.0.0.0"; mask="0.0.0.0"; flags="U"; metric=0; iface=""
+
+    if ($1 == "default") { dest="0.0.0.0"; mask="0.0.0.0"; flags="UG" }
+    else {
+      n = split($1, a, "/")
+      dest = a[1]
+      bits = (n>1) ? a[2] : 32
+      # calculate genmask from prefix length
+      if (bits == 0) mask="0.0.0.0"
+      else {
+        m = 0; for(i=0;i<bits;i++) m=m*2+1; m=m*(2^(32-bits))
+        mask=int(m/2^24)%256"."int(m/2^16)%256"."int(m/2^8)%256"."m%256
+      }
+    }
+
+    for (i=1;i<=NF;i++) {
+      if ($i=="via")      { gw=$(i+1); flags="UG" }
+      if ($i=="dev")      { iface=$(i+1) }
+      if ($i=="metric")   { metric=$(i+1) }
+      if ($i=="src")      { flags=flags }
+    }
+
+    printf "%-18s %-18s %-18s %-5s %-6s %-5s %-5s %s\n",
+      dest, gw, mask, flags, metric, 0, 0, iface
+  }'
+}
+
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv bash)"
