@@ -251,6 +251,7 @@ unset rc
 # PS1='+-\[\e[38;5;39m\][\u from \h][\D{%Y-%m-%d at }\t]\n+-[\[\e[38;5;43m\]\w\[\e[38;5;39m\]]\n\$\[\e[0m\] '
 # PROMPT_COMMAND='PS1_CMD1=$(__git_ps1 " (%s)")'; PS1='\[\e[38;5;39m\]+-\[\e[38;5;33m\][\[\e[38;5;39m\]\u from \h][\D{%Y-%m-%d at }\t]\n+-[\[\e[38;5;43m\]\w\[\e[38;5;39m\]]\[\e[0m\]${PS1_CMD1}\n\[\e[38;5;39m\]\$\[\e[0m\] '
 
+# git clone https://github.com/pyenv/pyenv.git ~/.pyenv
 export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init - bash)"
