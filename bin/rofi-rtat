@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+set -e
+
+die(){
+  echo "$@" >&2
+  exit 1
+}
+
+[[ -z "$1" ]] && die "Usage: $0 <window_role>"
+target=$1
+
+# shellcheck disable=SC2046
+# while read -r <$(i3-save-tree | grep window_role | perl -p -e 's/.*"window_role": "\^//; s/\\//g; s/ ?\$"$//')
+
+# shellcheck disable=SC2207
+outputs=($(xrandr | grep -P ' connected .*\d+x\d+\+\d+\+\d+ ' | awk '{print $1}'))
+# echo "outputs: " "${outputs[@]}" 1>&2
+
+# shellcheck disable=SC2207
+for output in "${outputs[@]}"; do
+  roles=($(i3-save-tree --output "$output" | grep window_role | perl -p -e 's/.*"window_role": "\^//; s/\\//g; s/ ?\$"$//'))
+done
+
+# echo "roles: " "${roles[@]}" 1>&2
+
+for role in "${roles[@]}";
+do
+  if [[ "$role" == "$target" ]]
+  then
+    i3-msg "[window_role=\"^$target\"] focus"
+    exit 0
+  fi
+done
+
+#xterm -e rtat "$target"
+#/usr/local/bin/st -t "Simple Terminal" -f "Source Code Pro:style=Semibold:size=10" -e rtat "$target"
+/usr/bin/ghostty -e rtat "$target"
+# if [[ "$target" =~ tgsre.net ]]
+# then
+#   xterm -e rtat-wormhole "$target"
+#   exit 0
+# else
+#   xterm -e rtat "$target"
+# fi

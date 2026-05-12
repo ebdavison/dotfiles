@@ -1,0 +1,30 @@
+#!/bin/bash
+set -e
+
+PATH=~/bin:$PATH:/usr/local/bin
+
+# shellcheck disable=SC2155
+# shellcheck disable=SC2162
+
+export HOSTNAME=$(hostname -s || hostname)	
+
+if [[ $# -ne 0 ]]
+then
+  tmux attach -t "$@" && exit 0
+fi
+
+i=$(tmux list-sessions | wc -l)
+
+case "$i" in
+  0) tmux new-session -s "$HOSTNAME";;
+  1) tmux attach ;;
+  *) tmux list-sessions | cat -n
+    echo "Enter selection number"
+    read -r s
+    [[ "$s" = "0" ]] && exec tmux new-session -s "$HOSTNAME"
+    target_session=$(tmux list-sessions | head -n "$s" | tail -1 | sed -e 's/:.*//')
+    xtb "$target_session"
+    [[ -n "$TMUX" ]] && tmux rename-window "$target_session"
+    tmux attach -t "$target_session"
+    ;;
+esac
