@@ -296,6 +296,7 @@ assign [class="Evolution"] 5
 assign [class="telegram"] 6
 assign [class="Youp"] 6
 assign [class="vscode"] 7
+assign [class="zed"] 7
 assign [class="chromium"] 9
 
 # got from bashbunni
