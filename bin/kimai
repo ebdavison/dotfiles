@@ -12,12 +12,34 @@ from json import JSONDecodeError
 from datetime import datetime
 from typing import Any
 from urllib.error import HTTPError, URLError
+from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 not supported here
+    tomllib = None
+
+def load_config_defaults() -> dict[str, str]:
+    config_path = Path.home() / ".config" / "kimai" / "config.toml"
+    if tomllib is None or not config_path.is_file():
+        return {}
+    with config_path.open("rb") as handle:
+        data = tomllib.load(handle)
+    if not isinstance(data, dict):
+        return {}
+    defaults: dict[str, str] = {}
+    for key in ("url", "token"):
+        value = data.get(key, "")
+        if value:
+            defaults[key] = str(value)
+    return defaults
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    defaults = load_config_defaults()
     parser = argparse.ArgumentParser(prog="kimai")
-    parser.add_argument("--url", default=os.environ.get("KIMAI_URL", ""))
-    parser.add_argument("--token", default=os.environ.get("KIMAI_TOKEN", ""))
+    parser.add_argument("--url", default=os.environ.get("KIMAI_URL", defaults.get("url", "")))
+    parser.add_argument("--token", default=os.environ.get("KIMAI_TOKEN", defaults.get("token", "")))
     parser.add_argument("--json", action="store_true")
     subparsers = parser.add_subparsers(dest="command", required=True)
 

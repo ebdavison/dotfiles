@@ -9,6 +9,7 @@ from contextlib import redirect_stderr
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from urllib.error import URLError
 from urllib.request import Request
 from unittest.mock import patch
@@ -25,6 +26,22 @@ def load_kimai():
 
 
 class TestKimaiCLI(unittest.TestCase):
+    def test_config_file_provides_defaults(self):
+        with TemporaryDirectory() as tmpdir:
+            config_dir = Path(tmpdir) / ".config" / "kimai"
+            config_dir.mkdir(parents=True)
+            (config_dir / "config.toml").write_text(
+                'url = "https://file.example"\n'
+                'token = "file-token"\n',
+                encoding="utf-8",
+            )
+            kimai = load_kimai()
+            with patch.object(kimai.Path, "home", return_value=Path(tmpdir)), patch.dict(os.environ, {}, clear=True):
+                args = kimai.parse_args(["view"])
+                settings = kimai.resolve_settings(args)
+        self.assertEqual(settings["base_url"], "https://file.example")
+        self.assertEqual(settings["token"], "file-token")
+
     def test_resolve_settings_prefers_flags_over_env(self):
         kimai = load_kimai()
         with patch.dict(
