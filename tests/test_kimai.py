@@ -162,9 +162,12 @@ class TestKimaiAPI(unittest.TestCase):
                     "end": "2026-07-10T11:02:00-0500",
                     "duration": 2940,
                     "description": "Configure postgresql on fincon server",
-                    "customer": {"name": "Fincon"},
-                    "project": {"name": "Server setup"},
-                    "activity": {"name": "Configuration"},
+                    "project": {
+                        "id": 2,
+                        "name": "Server setup",
+                        "customer": {"id": 8, "name": "Fincon"},
+                    },
+                    "activity": {"id": 9, "name": "Configuration"},
                 }
             )
 
@@ -179,8 +182,8 @@ class TestKimaiAPI(unittest.TestCase):
         output = stdout.getvalue()
         self.assertIn("ID: 1642", output)
         self.assertIn("Company: Fincon", output)
-        self.assertIn("Project: Server setup", output)
-        self.assertIn("Activity: Configuration", output)
+        self.assertIn("Project: Server setup [2]", output)
+        self.assertIn("Activity: Configuration [9]", output)
         self.assertIn("Duration: 00:49:00", output)
 
     def test_main_rejects_missing_config(self):

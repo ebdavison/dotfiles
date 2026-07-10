@@ -54,5 +54,6 @@ kimai stop --id 1234
 ```
 
 In list view, the duration column is shown as `hh:mm:ss`.
+In detail view, `project` and `activity` are shown as `name [id]` when the ID is available.
 
 Use `--json` if you want raw JSON output instead of the compact terminal view.

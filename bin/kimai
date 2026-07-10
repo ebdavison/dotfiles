@@ -175,20 +175,43 @@ def render_timesheet_detail(payload: dict, as_json: bool) -> None:
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
 
-    def name_of(value: Any) -> str:
+    def label_with_id(value: Any) -> str:
         if isinstance(value, dict):
+            name = ""
             for key in ("name", "title", "label"):
                 text = value.get(key)
                 if text:
-                    return str(text)
+                    name = str(text)
+                    break
+            identifier = value.get("id")
+            if name and identifier not in (None, ""):
+                return f"{name} [{identifier}]"
+            if name:
+                return name
+            if identifier not in (None, ""):
+                return f"[{identifier}]"
             return ""
         return str(value or "")
 
+    def company_name() -> str:
+        for candidate in (
+            payload.get("customer"),
+            payload.get("company"),
+            payload.get("client"),
+            (payload.get("project") or {}).get("customer") if isinstance(payload.get("project"), dict) else None,
+            (payload.get("project") or {}).get("customerName") if isinstance(payload.get("project"), dict) else None,
+            (payload.get("project") or {}).get("customer_name") if isinstance(payload.get("project"), dict) else None,
+        ):
+            text = label_with_id(candidate)
+            if text:
+                return text
+        return ""
+
     lines = [
         f'ID: {payload.get("id", "")}',
-        f'Company: {name_of(payload.get("customer") or payload.get("company") or payload.get("client"))}',
-        f'Project: {name_of(payload.get("project"))}',
-        f'Activity: {name_of(payload.get("activity"))}',
+        f'Company: {company_name()}',
+        f'Project: {label_with_id(payload.get("project"))}',
+        f'Activity: {label_with_id(payload.get("activity"))}',
         f'Begin: {payload.get("begin", "")}',
         f'End: {payload.get("end", "")}',
         f'Duration: {format_duration(payload.get("duration", ""))}',
