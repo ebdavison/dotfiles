@@ -5,10 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 import urllib.parse
 import urllib.request
+from json import JSONDecodeError
 from datetime import datetime
 from typing import Any
+from urllib.error import HTTPError, URLError
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -43,6 +46,13 @@ def resolve_settings(args: argparse.Namespace) -> dict[str, str | bool]:
     }
 
 
+def validate_settings(settings: dict[str, str | bool]) -> None:
+    if not settings["base_url"]:
+        raise RuntimeError("kimai: missing KIMAI_URL or --url")
+    if not settings["token"]:
+        raise RuntimeError("kimai: missing KIMAI_TOKEN or --token")
+
+
 def kimai_request(
     base_url: str,
     token: str,
@@ -53,13 +63,20 @@ def kimai_request(
     url = f"{base_url}/api{path}"
     data = None
     headers = {"Authorization": f"Bearer {token}"}
-    if fields is not None:
-        data = urllib.parse.urlencode(fields).encode("utf-8")
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
-    request = urllib.request.Request(url, data=data, headers=headers, method=method)
-    with urllib.request.urlopen(request) as response:
-        payload = response.read().decode("utf-8")
-    return json.loads(payload) if payload else {}
+    try:
+        if fields is not None:
+            data = urllib.parse.urlencode(fields).encode("utf-8")
+            headers["Content-Type"] = "application/x-www-form-urlencoded"
+        request = urllib.request.Request(url, data=data, headers=headers, method=method)
+        with urllib.request.urlopen(request) as response:
+            payload = response.read().decode("utf-8")
+        return json.loads(payload) if payload else {}
+    except HTTPError as exc:
+        raise RuntimeError(f"kimai: HTTP {exc.code} {exc.reason}") from None
+    except URLError as exc:
+        raise RuntimeError(f"kimai: network error: {exc.reason}") from None
+    except JSONDecodeError:
+        raise RuntimeError("kimai: invalid JSON response") from None
 
 
 def start_timesheet(settings: dict[str, str | bool], args: argparse.Namespace) -> dict:
@@ -119,12 +136,17 @@ def render_result(payload: dict, as_json: bool) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     settings = resolve_settings(args)
-    if args.command == "start":
-        render_result(start_timesheet(settings, args), args.json)
-    elif args.command == "stop":
-        render_result(stop_timesheet(settings, args), args.json)
-    elif args.command == "view":
-        render_result(view_timesheets(settings, args), args.json)
+    try:
+        validate_settings(settings)
+        if args.command == "start":
+            render_result(start_timesheet(settings, args), args.json)
+        elif args.command == "stop":
+            render_result(stop_timesheet(settings, args), args.json)
+        elif args.command == "view":
+            render_result(view_timesheets(settings, args), args.json)
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     return 0
 
 

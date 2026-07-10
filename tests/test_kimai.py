@@ -5,9 +5,11 @@ import json
 import os
 import unittest
 from contextlib import redirect_stdout
+from contextlib import redirect_stderr
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
+from urllib.error import URLError
 from urllib.request import Request
 from unittest.mock import patch
 
@@ -108,3 +110,30 @@ class TestKimaiAPI(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertIn("42", stdout.getvalue())
         self.assertIn("Standup", stdout.getvalue())
+
+    def test_main_rejects_missing_config(self):
+        kimai = load_kimai()
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch.dict(os.environ, {}, clear=True), redirect_stdout(stdout), redirect_stderr(stderr):
+            exit_code = kimai.main(["view"])
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("missing KIMAI_URL or --url", stderr.getvalue())
+
+    def test_main_reports_network_errors(self):
+        kimai = load_kimai()
+
+        def fake_urlopen(request: Request):
+            raise URLError("boom")
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch.dict(os.environ, {"KIMAI_URL": "https://kimai.example", "KIMAI_TOKEN": "secret"}), patch(
+            "urllib.request.urlopen",
+            side_effect=fake_urlopen,
+        ), redirect_stdout(stdout), redirect_stderr(stderr):
+            exit_code = kimai.main(["view"])
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("network error", stderr.getvalue())
