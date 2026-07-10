@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import unittest
 from contextlib import redirect_stdout
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
+from urllib.request import Request
 from unittest.mock import patch
 
 
@@ -43,3 +45,66 @@ class TestKimaiCLI(unittest.TestCase):
         self.assertIn("start", help_text)
         self.assertIn("stop", help_text)
         self.assertIn("view", help_text)
+
+
+class DummyResponse:
+    def __init__(self, payload: dict):
+        self.payload = json.dumps(payload).encode("utf-8")
+
+    def read(self):
+        return self.payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class TestKimaiAPI(unittest.TestCase):
+    def test_start_posts_expected_payload(self):
+        kimai = load_kimai()
+        captured = {}
+
+        def fake_urlopen(request: Request):
+            captured["url"] = request.full_url
+            captured["method"] = request.method
+            captured["body"] = request.data.decode("utf-8")
+            return DummyResponse({"id": 42, "description": "Standup"})
+
+        with patch.dict("os.environ", {"KIMAI_URL": "https://kimai.example", "KIMAI_TOKEN": "secret"}), patch(
+            "urllib.request.urlopen",
+            side_effect=fake_urlopen,
+        ):
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = kimai.main(["start", "--project", "7", "--activity", "3", "--description", "Standup"])
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(captured["url"], "https://kimai.example/api/timesheets")
+        self.assertEqual(captured["method"], "POST")
+        self.assertIn("project=7", captured["body"])
+        self.assertIn("activity=3", captured["body"])
+        self.assertIn("description=Standup", captured["body"])
+
+    def test_view_prints_a_compact_row(self):
+        kimai = load_kimai()
+
+        def fake_urlopen(request: Request):
+            return DummyResponse(
+                {
+                    "data": [
+                        {"id": 42, "begin": "2026-07-10T08:00:00-05:00", "duration": 3600, "description": "Standup"}
+                    ]
+                }
+            )
+
+        with patch.dict("os.environ", {"KIMAI_URL": "https://kimai.example", "KIMAI_TOKEN": "secret"}), patch(
+            "urllib.request.urlopen",
+            side_effect=fake_urlopen,
+        ):
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = kimai.main(["view", "--limit", "1"])
+        self.assertEqual(exit_code, 0)
+        self.assertIn("42", stdout.getvalue())
+        self.assertIn("Standup", stdout.getvalue())
