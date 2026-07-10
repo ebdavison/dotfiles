@@ -54,6 +54,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     stop.add_argument("--end")
 
     view = subparsers.add_parser("view")
+    view.add_argument("entry_id", nargs="?", help="timesheet id for a detailed view")
     view.add_argument("--limit", type=int, default=10)
 
     return parser.parse_args(argv)
@@ -129,6 +130,13 @@ def stop_timesheet(settings: dict[str, str | bool], args: argparse.Namespace) ->
 
 
 def view_timesheets(settings: dict[str, str | bool], args: argparse.Namespace) -> dict:
+    if args.entry_id:
+        return kimai_request(
+            str(settings["base_url"]),
+            str(settings["token"]),
+            "GET",
+            f"/timesheets/{args.entry_id}",
+        )
     return kimai_request(
         str(settings["base_url"]),
         str(settings["token"]),
@@ -137,13 +145,56 @@ def view_timesheets(settings: dict[str, str | bool], args: argparse.Namespace) -
     )
 
 
+def format_duration(value: Any) -> str:
+    if value in (None, ""):
+        return ""
+    try:
+        total_seconds = int(float(value))
+    except (TypeError, ValueError):
+        return str(value)
+    hours, remainder = divmod(abs(total_seconds), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    prefix = "-" if total_seconds < 0 else ""
+    return f"{prefix}{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
 def render_timesheets(payload: dict, as_json: bool) -> None:
     if as_json:
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
     rows = payload if isinstance(payload, list) else payload.get("data", [])
     for row in rows:
-        print(f'{row.get("id", "")}\t{row.get("begin", "")}\t{row.get("duration", "")}\t{row.get("description", "")}')
+        print(
+            f'{row.get("id", "")}\t{row.get("begin", "")}\t'
+            f'{format_duration(row.get("duration", ""))}\t{row.get("description", "")}'
+        )
+
+
+def render_timesheet_detail(payload: dict, as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return
+
+    def name_of(value: Any) -> str:
+        if isinstance(value, dict):
+            for key in ("name", "title", "label"):
+                text = value.get(key)
+                if text:
+                    return str(text)
+            return ""
+        return str(value or "")
+
+    lines = [
+        f'ID: {payload.get("id", "")}',
+        f'Company: {name_of(payload.get("customer") or payload.get("company") or payload.get("client"))}',
+        f'Project: {name_of(payload.get("project"))}',
+        f'Activity: {name_of(payload.get("activity"))}',
+        f'Begin: {payload.get("begin", "")}',
+        f'End: {payload.get("end", "")}',
+        f'Duration: {format_duration(payload.get("duration", ""))}',
+        f'Description: {payload.get("description", "")}',
+    ]
+    print("\n".join(lines))
 
 
 def render_result(payload: dict, as_json: bool) -> None:
@@ -169,7 +220,11 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "stop":
             render_result(stop_timesheet(settings, args), args.json)
         elif args.command == "view":
-            render_result(view_timesheets(settings, args), args.json)
+            payload = view_timesheets(settings, args)
+            if args.entry_id:
+                render_timesheet_detail(payload, args.json)
+            else:
+                render_result(payload, args.json)
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 1

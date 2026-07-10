@@ -148,6 +148,40 @@ class TestKimaiAPI(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertIn("42", stdout.getvalue())
         self.assertIn("Standup", stdout.getvalue())
+        self.assertIn("01:00:00", stdout.getvalue())
+
+    def test_view_by_id_prints_detailed_entry(self):
+        kimai = load_kimai()
+
+        def fake_urlopen(request: Request):
+            self.assertEqual(request.full_url, "https://kimai.example/api/timesheets/1642")
+            return DummyResponse(
+                {
+                    "id": 1642,
+                    "begin": "2026-07-10T10:13:00-0500",
+                    "end": "2026-07-10T11:02:00-0500",
+                    "duration": 2940,
+                    "description": "Configure postgresql on fincon server",
+                    "customer": {"name": "Fincon"},
+                    "project": {"name": "Server setup"},
+                    "activity": {"name": "Configuration"},
+                }
+            )
+
+        with patch.dict(os.environ, {"KIMAI_URL": "https://kimai.example", "KIMAI_TOKEN": "secret"}), patch(
+            "urllib.request.urlopen",
+            side_effect=fake_urlopen,
+        ):
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = kimai.main(["view", "1642"])
+        self.assertEqual(exit_code, 0)
+        output = stdout.getvalue()
+        self.assertIn("ID: 1642", output)
+        self.assertIn("Company: Fincon", output)
+        self.assertIn("Project: Server setup", output)
+        self.assertIn("Activity: Configuration", output)
+        self.assertIn("Duration: 00:49:00", output)
 
     def test_main_rejects_missing_config(self):
         with TemporaryDirectory() as tmpdir:
