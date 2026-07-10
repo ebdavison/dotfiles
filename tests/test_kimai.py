@@ -128,15 +128,39 @@ class TestKimaiAPI(unittest.TestCase):
         self.assertIn("42", stdout.getvalue())
         self.assertIn("Standup", stdout.getvalue())
 
-    def test_main_rejects_missing_config(self):
+    def test_view_prints_top_level_list_response(self):
         kimai = load_kimai()
-        stdout = io.StringIO()
-        stderr = io.StringIO()
-        with patch.dict(os.environ, {}, clear=True), redirect_stdout(stdout), redirect_stderr(stderr):
-            exit_code = kimai.main(["view"])
-        self.assertEqual(exit_code, 1)
-        self.assertEqual(stdout.getvalue(), "")
-        self.assertIn("missing KIMAI_URL or --url", stderr.getvalue())
+
+        def fake_urlopen(request: Request):
+            return DummyResponse(
+                [
+                    {"id": 42, "begin": "2026-07-10T08:00:00-05:00", "duration": 3600, "description": "Standup"}
+                ]
+            )
+
+        with patch.dict(os.environ, {"KIMAI_URL": "https://kimai.example", "KIMAI_TOKEN": "secret"}), patch(
+            "urllib.request.urlopen",
+            side_effect=fake_urlopen,
+        ):
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = kimai.main(["view", "--limit", "1"])
+        self.assertEqual(exit_code, 0)
+        self.assertIn("42", stdout.getvalue())
+        self.assertIn("Standup", stdout.getvalue())
+
+    def test_main_rejects_missing_config(self):
+        with TemporaryDirectory() as tmpdir:
+            kimai = load_kimai()
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with patch.object(kimai.Path, "home", return_value=Path(tmpdir)), patch.dict(
+                os.environ, {}, clear=True
+            ), redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = kimai.main(["view"])
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn("missing KIMAI_URL or --url", stderr.getvalue())
 
     def test_main_reports_network_errors(self):
         kimai = load_kimai()

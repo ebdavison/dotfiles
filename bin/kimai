@@ -141,13 +141,17 @@ def render_timesheets(payload: dict, as_json: bool) -> None:
     if as_json:
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
-    for row in payload.get("data", []):
+    rows = payload if isinstance(payload, list) else payload.get("data", [])
+    for row in rows:
         print(f'{row.get("id", "")}\t{row.get("begin", "")}\t{row.get("duration", "")}\t{row.get("description", "")}')
 
 
 def render_result(payload: dict, as_json: bool) -> None:
     if as_json:
         print(json.dumps(payload, indent=2, sort_keys=True))
+        return
+    if isinstance(payload, list):
+        render_timesheets(payload, False)
         return
     if isinstance(payload.get("data"), list):
         render_timesheets(payload, False)
