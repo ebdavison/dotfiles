@@ -9,7 +9,7 @@ import sys
 import urllib.parse
 import urllib.request
 from json import JSONDecodeError
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
 from pathlib import Path
@@ -41,6 +41,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--url", default=os.environ.get("KIMAI_URL", defaults.get("url", "")))
     parser.add_argument("--token", default=os.environ.get("KIMAI_TOKEN", defaults.get("token", "")))
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--debug", action="store_true")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     start = subparsers.add_parser("start")
@@ -56,6 +57,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     view = subparsers.add_parser("view")
     view.add_argument("entry_id", nargs="?", help="timesheet id for a detailed view")
     view.add_argument("--limit", type=int, default=10)
+    view.add_argument("--sort", choices=("begin", "end", "id"), default="begin")
+    view.add_argument("--reverse", action="store_true", help="reverse the selected sort order")
+    view.add_argument("--from", dest="from_", help="only include entries beginning on or after this timestamp")
+    view.add_argument("--to", help="only include entries beginning on or before this timestamp")
+    view.add_argument("--project", help="filter by project id or name")
+    view.add_argument("--activity", help="filter by activity id or name")
+    view.add_argument("--company", help="filter by company id or name")
 
     return parser.parse_args(argv)
 
@@ -66,6 +74,7 @@ def resolve_settings(args: argparse.Namespace) -> dict[str, str | bool]:
         "token": args.token,
         "command": args.command,
         "json": args.json,
+        "debug": args.debug,
     }
 
 
@@ -74,6 +83,11 @@ def validate_settings(settings: dict[str, str | bool]) -> None:
         raise RuntimeError("kimai: missing KIMAI_URL or --url")
     if not settings["token"]:
         raise RuntimeError("kimai: missing KIMAI_TOKEN or --token")
+
+
+def debug_log(settings: dict[str, str | bool], message: str) -> None:
+    if settings.get("debug"):
+        print(f"kimai debug: {message}", file=sys.stderr)
 
 
 def kimai_request(
@@ -152,12 +166,27 @@ def view_timesheets(settings: dict[str, str | bool], args: argparse.Namespace) -
                 f"/activities/{payload['activity']}",
             )
         return payload
-    return kimai_request(
-        str(settings["base_url"]),
-        str(settings["token"]),
-        "GET",
-        f"/timesheets/recent?size={args.limit}",
-    )
+    rows: list[dict] = []
+    page = 1
+    page_size = 500
+    while True:
+        debug_log(settings, f"fetch page={page} size={page_size} endpoint=/timesheets")
+        payload = kimai_request(
+            str(settings["base_url"]),
+            str(settings["token"]),
+            "GET",
+            f"/timesheets?page={page}&size={page_size}",
+        )
+        batch = payload if isinstance(payload, list) else payload.get("data", [])
+        if not isinstance(batch, list) or not batch:
+            break
+        rows.extend(batch)
+        debug_log(settings, f"page={page} rows={len(batch)} total={len(rows)}")
+        if len(batch) < page_size:
+            break
+        page += 1
+    debug_log(settings, f"fetched={len(rows)}")
+    return {"data": rows}
 
 
 def format_duration(value: Any) -> str:
@@ -173,11 +202,204 @@ def format_duration(value: Any) -> str:
     return f"{prefix}{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
-def render_timesheets(payload: dict, as_json: bool) -> None:
+def parse_sort_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    candidates = [text]
+    if text.endswith("Z"):
+        candidates.append(f"{text[:-1]}+00:00")
+    if len(text) >= 5 and text[-5] in "+-" and text[-3] != ":" and text[-4:].isdigit():
+        candidates.append(f"{text[:-2]}:{text[-2:]}")
+    for candidate in candidates:
+        try:
+            parsed = datetime.fromisoformat(candidate)
+        except ValueError:
+            continue
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed
+    return None
+
+
+def parse_filter_timestamp(value: Any, end_of_day: bool = False) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    local_tz = datetime.now().astimezone().tzinfo or timezone.utc
+    if len(text) == 10 and text[4] == "-" and text[7] == "-":
+        parsed_date = datetime.fromisoformat(text).date()
+        clock = datetime.max.time() if end_of_day else datetime.min.time()
+        return datetime.combine(parsed_date, clock).replace(tzinfo=local_tz)
+    candidates = [text]
+    if text.endswith("Z"):
+        candidates.append(f"{text[:-1]}+00:00")
+    if len(text) >= 5 and text[-5] in "+-" and text[-3] != ":" and text[-4:].isdigit():
+        candidates.append(f"{text[:-2]}:{text[-2:]}")
+    for candidate in candidates:
+        try:
+            parsed = datetime.fromisoformat(candidate)
+        except ValueError:
+            continue
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=local_tz)
+        return parsed
+    return None
+
+
+def normalize_filter_text(value: Any) -> str:
+    return str(value).strip().casefold()
+
+
+def collect_candidate_texts(
+    value: Any,
+    kind: str,
+    settings: dict[str, str | bool],
+    cache: dict[str, dict],
+) -> list[str]:
+    texts: list[str] = []
+    if value in (None, ""):
+        return texts
+    if isinstance(value, dict):
+        for key in ("id", "name", "title", "label", "customerName", "customer_name"):
+            candidate = value.get(key)
+            if candidate not in (None, ""):
+                texts.append(str(candidate))
+        if kind == "company":
+            texts.extend(collect_candidate_texts(value.get("customer"), kind, settings, cache))
+        return texts
+    text = str(value).strip()
+    if not text:
+        return texts
+    texts.append(text)
+    if text.isdigit():
+        endpoint = {"project": "projects", "activity": "activities", "company": "customers"}[kind]
+        path = f"/{endpoint}/{text}"
+        if path not in cache:
+            cache[path] = kimai_request(
+                str(settings["base_url"]),
+                str(settings["token"]),
+                "GET",
+                path,
+            )
+        texts.extend(collect_candidate_texts(cache[path], kind, settings, cache))
+    return texts
+
+
+def resolve_related_object(
+    value: Any,
+    kind: str,
+    settings: dict[str, str | bool],
+    cache: dict[str, dict],
+) -> dict | None:
+    if isinstance(value, dict):
+        return value
+    text = str(value).strip()
+    if not text.isdigit():
+        return None
+    endpoint = {"project": "projects", "activity": "activities", "company": "customers"}[kind]
+    path = f"/{endpoint}/{text}"
+    if path not in cache:
+        cache[path] = kimai_request(
+            str(settings["base_url"]),
+            str(settings["token"]),
+            "GET",
+            path,
+        )
+    candidate = cache[path]
+    return candidate if isinstance(candidate, dict) else None
+
+
+def value_matches_term(
+    value: Any,
+    term: str,
+    kind: str,
+    settings: dict[str, str | bool],
+    cache: dict[str, dict],
+) -> bool:
+    term_text = normalize_filter_text(term)
+    if not term_text:
+        return True
+    return any(normalize_filter_text(candidate) == term_text for candidate in collect_candidate_texts(value, kind, settings, cache))
+
+
+def row_matches_filters(
+    row: dict,
+    args: argparse.Namespace,
+    settings: dict[str, str | bool],
+    cache: dict[str, dict],
+) -> bool:
+    begin = parse_sort_timestamp(row.get("begin"))
+    from_dt = parse_filter_timestamp(args.from_) if getattr(args, "from_", None) else None
+    to_dt = parse_filter_timestamp(args.to, end_of_day=True) if getattr(args, "to", None) else None
+    if from_dt is not None and (begin is None or begin < from_dt):
+        return False
+    if to_dt is not None and (begin is None or begin > to_dt):
+        return False
+    if args.project and not value_matches_term(row.get("project"), args.project, "project", settings, cache):
+        return False
+    if args.activity and not value_matches_term(row.get("activity"), args.activity, "activity", settings, cache):
+        return False
+    if args.company:
+        company_candidates = [
+            row.get("customer"),
+            row.get("company"),
+            row.get("client"),
+        ]
+        project = resolve_related_object(row.get("project"), "project", settings, cache)
+        if project is not None:
+            company_candidates.extend(
+                [
+                    project.get("customer"),
+                    project.get("customerName"),
+                    project.get("customer_name"),
+                ]
+            )
+        if not any(
+            value_matches_term(candidate, args.company, "company", settings, cache)
+            for candidate in company_candidates
+        ):
+            return False
+    return True
+
+
+def filter_timesheet_rows(
+    rows: list[dict],
+    args: argparse.Namespace,
+    settings: dict[str, str | bool],
+) -> list[dict]:
+    cache: dict[str, dict] = {}
+    matched = [row for row in rows if row_matches_filters(row, args, settings, cache)]
+    debug_log(settings, f"matched={len(matched)} filtered={len(rows) - len(matched)}")
+    return matched
+
+
+def sort_timesheet_rows(rows: list[dict], sort_field: str, reverse: bool) -> list[dict]:
+    def sort_key(row: dict) -> Any:
+        if sort_field == "id":
+            try:
+                return int(row.get("id", -1))
+            except (TypeError, ValueError):
+                return -1
+        if sort_field in ("begin", "end"):
+            parsed = parse_sort_timestamp(row.get(sort_field))
+            return parsed or datetime.min.replace(tzinfo=timezone.utc)
+        value = row.get(sort_field)
+        return "" if value is None else str(value)
+
+    return sorted(rows, key=sort_key, reverse=reverse)
+
+
+def render_timesheets(payload: dict, as_json: bool, sort_field: str = "begin", reverse: bool = True) -> None:
     if as_json:
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
     rows = payload if isinstance(payload, list) else payload.get("data", [])
+    rows = sort_timesheet_rows(list(rows), sort_field, reverse)
     for row in rows:
         print(
             f'{row.get("id", "")}\t{row.get("begin", "")}\t'
@@ -185,7 +407,7 @@ def render_timesheets(payload: dict, as_json: bool) -> None:
         )
 
 
-def render_timesheet_detail(payload: dict, as_json: bool) -> None:
+def render_timesheet_detail(payload: dict, as_json: bool, settings: dict[str, str | bool]) -> None:
     if as_json:
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
@@ -218,6 +440,13 @@ def render_timesheet_detail(payload: dict, as_json: bool) -> None:
             project.get("customerName") if isinstance(project, dict) else None,
             project.get("customer_name") if isinstance(project, dict) else None,
         ):
+            if isinstance(candidate, int) or (isinstance(candidate, str) and candidate.strip().isdigit()):
+                candidate = kimai_request(
+                    str(settings["base_url"]),
+                    str(settings["token"]),
+                    "GET",
+                    f"/customers/{candidate}",
+                )
             text = label_with_id(candidate)
             if text:
                 return text
@@ -236,15 +465,24 @@ def render_timesheet_detail(payload: dict, as_json: bool) -> None:
     print("\n".join(lines))
 
 
-def render_result(payload: dict, as_json: bool) -> None:
+def render_result(
+    payload: dict,
+    as_json: bool,
+    settings: dict[str, str | bool] | None = None,
+    sort_field: str = "begin",
+    reverse: bool = True,
+) -> None:
     if as_json:
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
     if isinstance(payload, list):
-        render_timesheets(payload, False)
+        render_timesheets(payload, False, sort_field, reverse)
         return
     if isinstance(payload.get("data"), list):
-        render_timesheets(payload, False)
+        render_timesheets(payload, False, sort_field, reverse)
+        return
+    if settings is not None:
+        render_timesheet_detail(payload, False, settings)
         return
     print(payload.get("id", ""))
 
@@ -261,9 +499,19 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "view":
             payload = view_timesheets(settings, args)
             if args.entry_id:
-                render_timesheet_detail(payload, args.json)
+                render_timesheet_detail(payload, args.json, settings)
             else:
-                render_result(payload, args.json)
+                rows = payload if isinstance(payload, list) else payload.get("data", [])
+                if args.json:
+                    render_result(payload, True)
+                else:
+                    filtered_rows = filter_timesheet_rows(list(rows), args, settings)
+                    limited_rows = filtered_rows[: args.limit] if args.limit else filtered_rows
+                    debug_log(
+                        settings,
+                        f"displayed={len(limited_rows)} limit={args.limit} sort={args.sort} reverse={args.reverse}",
+                    )
+                    render_timesheets(limited_rows, False, args.sort, not args.reverse)
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 1
