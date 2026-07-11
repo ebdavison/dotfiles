@@ -152,24 +152,30 @@ class TestKimaiAPI(unittest.TestCase):
 
     def test_view_by_id_prints_detailed_entry(self):
         kimai = load_kimai()
+        responses = {
+            "https://kimai.example/api/timesheets/1642": {
+                "id": 1642,
+                "begin": "2026-07-10T10:13:00-0500",
+                "end": "2026-07-10T11:02:00-0500",
+                "duration": 2940,
+                "description": "Configure postgresql on fincon server",
+                "project": 2,
+                "activity": 9,
+            },
+            "https://kimai.example/api/projects/2": {
+                "id": 2,
+                "name": "Server setup",
+                "customer": {"id": 8, "name": "Fincon"},
+            },
+            "https://kimai.example/api/activities/9": {
+                "id": 9,
+                "name": "Configuration",
+            },
+        }
 
         def fake_urlopen(request: Request):
-            self.assertEqual(request.full_url, "https://kimai.example/api/timesheets/1642")
-            return DummyResponse(
-                {
-                    "id": 1642,
-                    "begin": "2026-07-10T10:13:00-0500",
-                    "end": "2026-07-10T11:02:00-0500",
-                    "duration": 2940,
-                    "description": "Configure postgresql on fincon server",
-                    "project": {
-                        "id": 2,
-                        "name": "Server setup",
-                        "customer": {"id": 8, "name": "Fincon"},
-                    },
-                    "activity": {"id": 9, "name": "Configuration"},
-                }
-            )
+            self.assertIn(request.full_url, responses)
+            return DummyResponse(responses[request.full_url])
 
         with patch.dict(os.environ, {"KIMAI_URL": "https://kimai.example", "KIMAI_TOKEN": "secret"}), patch(
             "urllib.request.urlopen",
@@ -181,7 +187,7 @@ class TestKimaiAPI(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         output = stdout.getvalue()
         self.assertIn("ID: 1642", output)
-        self.assertIn("Company: Fincon", output)
+        self.assertIn("Company: Fincon [8]", output)
         self.assertIn("Project: Server setup [2]", output)
         self.assertIn("Activity: Configuration [9]", output)
         self.assertIn("Duration: 00:49:00", output)

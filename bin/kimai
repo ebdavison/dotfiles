@@ -131,12 +131,27 @@ def stop_timesheet(settings: dict[str, str | bool], args: argparse.Namespace) ->
 
 def view_timesheets(settings: dict[str, str | bool], args: argparse.Namespace) -> dict:
     if args.entry_id:
-        return kimai_request(
+        payload = kimai_request(
             str(settings["base_url"]),
             str(settings["token"]),
             "GET",
             f"/timesheets/{args.entry_id}",
         )
+        if isinstance(payload.get("project"), (int, str)) and str(payload["project"]).strip():
+            payload["project"] = kimai_request(
+                str(settings["base_url"]),
+                str(settings["token"]),
+                "GET",
+                f"/projects/{payload['project']}",
+            )
+        if isinstance(payload.get("activity"), (int, str)) and str(payload["activity"]).strip():
+            payload["activity"] = kimai_request(
+                str(settings["base_url"]),
+                str(settings["token"]),
+                "GET",
+                f"/activities/{payload['activity']}",
+            )
+        return payload
     return kimai_request(
         str(settings["base_url"]),
         str(settings["token"]),
@@ -194,13 +209,14 @@ def render_timesheet_detail(payload: dict, as_json: bool) -> None:
         return str(value or "")
 
     def company_name() -> str:
+        project = payload.get("project") if isinstance(payload.get("project"), dict) else {}
         for candidate in (
             payload.get("customer"),
             payload.get("company"),
             payload.get("client"),
-            (payload.get("project") or {}).get("customer") if isinstance(payload.get("project"), dict) else None,
-            (payload.get("project") or {}).get("customerName") if isinstance(payload.get("project"), dict) else None,
-            (payload.get("project") or {}).get("customer_name") if isinstance(payload.get("project"), dict) else None,
+            project.get("customer") if isinstance(project, dict) else None,
+            project.get("customerName") if isinstance(project, dict) else None,
+            project.get("customer_name") if isinstance(project, dict) else None,
         ):
             text = label_with_id(candidate)
             if text:
