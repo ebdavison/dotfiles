@@ -223,7 +223,7 @@ alias dprune='docker image prune'
 export LIBVA_DRIVER_NAME=iHD
 
 PATH="${PATH:+:${PATH}}"; export PATH;
-export PATH=$PATH:$HOME/bin
+export PATH=$PATH:$HOME/bin:$HOME/.local/bin
 
 # git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && ~/.fzf/install
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
@@ -251,6 +251,7 @@ unset rc
 # PS1='+-\[\e[38;5;39m\][\u from \h][\D{%Y-%m-%d at }\t]\n+-[\[\e[38;5;43m\]\w\[\e[38;5;39m\]]\n\$\[\e[0m\] '
 # PROMPT_COMMAND='PS1_CMD1=$(__git_ps1 " (%s)")'; PS1='\[\e[38;5;39m\]+-\[\e[38;5;33m\][\[\e[38;5;39m\]\u from \h][\D{%Y-%m-%d at }\t]\n+-[\[\e[38;5;43m\]\w\[\e[38;5;39m\]]\[\e[0m\]${PS1_CMD1}\n\[\e[38;5;39m\]\$\[\e[0m\] '
 
+# git clone https://github.com/pyenv/pyenv.git ~/.pyenv
 export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init - bash)"
@@ -306,4 +307,12 @@ showroute() {
   }'
 }
 
-eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv bash)"
+#eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv bash)"
+. "$HOME/.cargo/env"
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+export AI_EOS_HOME="$HOME/.ai-eos"
+
