@@ -1,0 +1,211 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ALLOWLIST=(
+  ".bashrc"
+  ".bash_profile"
+  ".bash_aliases"
+  ".bash_logout"
+  ".bash-preexec.sh"
+  ".bashrc.d"
+  ".vimrc"
+  ".vim"
+  ".viminfo"
+  ".config"
+  ".poshthemes"
+)
+
+copied_count=0
+skipped_count=0
+warning_count=0
+backup_stamp="${DOTFILES_DEPLOY_BACKUP_STAMP:-$(date +%Y%m%d-%H%M%S)}"
+backup_root=""
+replaced_count=0
+
+repo_root() {
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+  cd "$script_dir/.." && pwd -P
+}
+
+validate_home() {
+  if [[ -z "${HOME:-}" || "$HOME" == "/" ]]; then
+    echo "Refusing to run with unsafe HOME: ${HOME:-<empty>}" >&2
+    exit 2
+  fi
+}
+
+warn() {
+  warning_count=$((warning_count + 1))
+  echo "WARN: $*" >&2
+}
+
+copy_new_file() {
+  local source="$1"
+  local destination="$2"
+  mkdir -p "$(dirname "$destination")"
+  cp -p "$source" "$destination"
+  copied_count=$((copied_count + 1))
+  echo "copied $destination"
+}
+
+backup_existing() {
+  local destination="$1"
+  local relative_path="$2"
+  backup_root="$HOME/.dotfiles-deploy-backup/$backup_stamp"
+  local backup_path="$backup_root/$relative_path"
+  mkdir -p "$(dirname "$backup_path")"
+  cp -p "$destination" "$backup_path"
+  echo "backed up $destination to $backup_path"
+}
+
+replace_file() {
+  local source="$1"
+  local destination="$2"
+  local relative_path="$3"
+  backup_existing "$destination" "$relative_path"
+  cp -p "$source" "$destination"
+  replaced_count=$((replaced_count + 1))
+  echo "replaced $destination"
+}
+
+show_diff() {
+  local source="$1"
+  local destination="$2"
+  diff -u --label "$destination" --label "$source" "$destination" "$source" || true
+}
+
+prompt_conflict() {
+  local source="$1"
+  local destination="$2"
+  local relative_path="$3"
+  local answer
+
+  while true; do
+    printf 'Conflict: %s differs. [d]iff, [y]es replace, [n]o skip, [q]uit: ' "$destination" >&2
+    if ! IFS= read -r answer; then
+      echo "No answer received; skipping $destination" >&2
+      skipped_count=$((skipped_count + 1))
+      return 0
+    fi
+
+    case "$answer" in
+      d|D|diff|DIFF)
+        show_diff "$source" "$destination"
+        ;;
+      y|Y|yes|YES)
+        replace_file "$source" "$destination" "$relative_path"
+        return 0
+        ;;
+      n|N|no|NO|"")
+        skipped_count=$((skipped_count + 1))
+        echo "skipped $destination"
+        return 0
+        ;;
+      q|Q|quit|QUIT)
+        echo "Aborted by user" >&2
+        exit 130
+        ;;
+      *)
+        echo "Please answer d, y, n, or q." >&2
+        ;;
+    esac
+  done
+}
+
+deploy_file() {
+  local relative_path="$1"
+  local root="$2"
+  local source="$root/$relative_path"
+  local destination="$HOME/$relative_path"
+
+  if [[ -L "$source" ]]; then
+    warn "skipping symlink source $relative_path"
+    return 0
+  fi
+
+  if [[ -L "$destination" ]]; then
+    warn "skipping symlink destination $relative_path"
+    skipped_count=$((skipped_count + 1))
+    return 0
+  fi
+
+  if [[ ! -e "$destination" ]]; then
+    copy_new_file "$source" "$destination"
+    return 0
+  fi
+
+  if [[ -f "$destination" ]] && cmp -s "$source" "$destination"; then
+    skipped_count=$((skipped_count + 1))
+    echo "identical $destination"
+    return 0
+  fi
+
+  if [[ ! -f "$destination" ]]; then
+    warn "destination exists but is not a regular file: $relative_path"
+    skipped_count=$((skipped_count + 1))
+    return 0
+  fi
+
+  prompt_conflict "$source" "$destination" "$relative_path"
+}
+
+deploy_directory() {
+  local relative_path="$1"
+  local root="$2"
+  local source_dir="$root/$relative_path"
+  local entry
+  local rel_entry
+
+  while IFS= read -r -d '' -u 9 entry; do
+    rel_entry="${entry#"$root/"}"
+
+    if [[ -L "$entry" ]]; then
+      warn "skipping symlink source $rel_entry"
+      continue
+    fi
+
+    if [[ -f "$entry" ]]; then
+      deploy_file "$rel_entry" "$root"
+    fi
+  done 9< <(find "$source_dir" \( -type f -o -type l \) -print0)
+}
+
+deploy_path() {
+  local relative_path="$1"
+  local root="$2"
+  local source="$root/$relative_path"
+
+  if [[ ! -e "$source" ]]; then
+    warn "allowlist path missing: $relative_path"
+    return 0
+  fi
+
+  if [[ -L "$source" ]]; then
+    warn "skipping symlink source $relative_path"
+    return 0
+  fi
+
+  if [[ -d "$source" ]]; then
+    deploy_directory "$relative_path" "$root"
+  elif [[ -f "$source" ]]; then
+    deploy_file "$relative_path" "$root"
+  else
+    warn "skipping unsupported source type: $relative_path"
+  fi
+}
+
+main() {
+  validate_home
+  local root
+  root="$(repo_root)"
+
+  local path
+  for path in "${ALLOWLIST[@]}"; do
+    deploy_path "$path" "$root"
+  done
+
+  echo "Summary: copied=$copied_count replaced=$replaced_count skipped=$skipped_count warnings=$warning_count"
+}
+
+main "$@"
