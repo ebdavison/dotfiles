@@ -148,12 +148,21 @@ deploy_directory() {
   local relative_path="$1"
   local root="$2"
   local source_dir="$root/$relative_path"
-  local file
+  local entry
+  local rel_entry
 
-  while IFS= read -r -d '' -u 9 file; do
-    file="${file#"$root/"}"
-    deploy_file "$file" "$root"
-  done 9< <(find "$source_dir" -type f -print0)
+  while IFS= read -r -d '' -u 9 entry; do
+    rel_entry="${entry#"$root/"}"
+
+    if [[ -L "$entry" ]]; then
+      warn "skipping symlink source $rel_entry"
+      continue
+    fi
+
+    if [[ -f "$entry" ]]; then
+      deploy_file "$rel_entry" "$root"
+    fi
+  done 9< <(find "$source_dir" \( -type f -o -type l \) -print0)
 }
 
 deploy_path() {

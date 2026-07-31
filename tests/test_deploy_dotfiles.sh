@@ -163,6 +163,50 @@ test_conflict_quit_aborts_before_later_files() {
   grep -q 'Aborted by user' "$TEST_ROOT/output.txt" || fail "missing abort message"
 }
 
+test_directory_deploys_recursively_and_preserves_destination_only_files() {
+  setup_repo
+  trap cleanup_repo RETURN
+  mkdir -p "$TEST_ROOT/repo/.config/i3" "$TEST_ROOT/repo/.config/polybar" "$TEST_ROOT/home/.config/i3" "$TEST_ROOT/home/.config/keep"
+  printf 'repo i3\n' > "$TEST_ROOT/repo/.config/i3/config"
+  printf 'repo polybar\n' > "$TEST_ROOT/repo/.config/polybar/config.ini"
+  printf 'home only\n' > "$TEST_ROOT/home/.config/keep/local.conf"
+
+  run_deploy > "$TEST_ROOT/output.txt"
+
+  assert_file_content "$TEST_ROOT/home/.config/i3/config" "repo i3"
+  assert_file_content "$TEST_ROOT/home/.config/polybar/config.ini" "repo polybar"
+  assert_file_content "$TEST_ROOT/home/.config/keep/local.conf" "home only"
+}
+
+test_missing_allowlist_paths_warn_but_do_not_fail() {
+  setup_repo
+  trap cleanup_repo RETURN
+  printf 'repo bashrc\n' > "$TEST_ROOT/repo/.bashrc"
+
+  run_deploy > "$TEST_ROOT/output.txt" 2> "$TEST_ROOT/error.txt"
+
+  assert_file_content "$TEST_ROOT/home/.bashrc" "repo bashrc"
+  grep -q 'WARN: allowlist path missing: .vimrc' "$TEST_ROOT/error.txt" || fail "expected missing .vimrc warning"
+}
+
+test_symlink_sources_are_skipped() {
+  setup_repo
+  trap cleanup_repo RETURN
+  printf 'external\n' > "$TEST_ROOT/external-file"
+  ln -s "$TEST_ROOT/external-file" "$TEST_ROOT/repo/.bashrc"
+  mkdir -p "$TEST_ROOT/repo/.config"
+  printf 'real\n' > "$TEST_ROOT/repo/.config/real.conf"
+  ln -s "$TEST_ROOT/external-file" "$TEST_ROOT/repo/.config/linked.conf"
+
+  run_deploy > "$TEST_ROOT/output.txt" 2> "$TEST_ROOT/error.txt"
+
+  assert_file_missing "$TEST_ROOT/home/.bashrc"
+  assert_file_content "$TEST_ROOT/home/.config/real.conf" "real"
+  assert_file_missing "$TEST_ROOT/home/.config/linked.conf"
+  grep -q 'WARN: skipping symlink source .bashrc' "$TEST_ROOT/error.txt" || fail "expected top-level symlink warning"
+  grep -q 'WARN: skipping symlink source .config/linked.conf' "$TEST_ROOT/error.txt" || fail "expected nested symlink warning"
+}
+
 run_test() {
   local name="$1"
   echo "Running $name"
@@ -178,5 +222,8 @@ run_test test_conflict_yes_replaces_and_backs_up
 run_test test_conflict_diff_then_no_shows_diff_and_skips
 run_test test_directory_conflict_yes_replaces_and_backs_up
 run_test test_conflict_quit_aborts_before_later_files
+run_test test_directory_deploys_recursively_and_preserves_destination_only_files
+run_test test_missing_allowlist_paths_warn_but_do_not_fail
+run_test test_symlink_sources_are_skipped
 
 echo "All deploy-dotfiles tests passed"
