@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ALLOWLIST=(
+  ".bashrc"
+  ".bash_profile"
+  ".bash_aliases"
+  ".bash_logout"
+  ".bash-preexec.sh"
+  ".bashrc.d"
+  ".vimrc"
+  ".vim"
+  ".viminfo"
+  ".config"
+  ".poshthemes"
+)
+
+copied_count=0
+skipped_count=0
+warning_count=0
+
+repo_root() {
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+  cd "$script_dir/.." && pwd -P
+}
+
+validate_home() {
+  if [[ -z "${HOME:-}" || "$HOME" == "/" ]]; then
+    echo "Refusing to run with unsafe HOME: ${HOME:-<empty>}" >&2
+    exit 2
+  fi
+}
+
+warn() {
+  warning_count=$((warning_count + 1))
+  echo "WARN: $*" >&2
+}
+
+copy_new_file() {
+  local source="$1"
+  local destination="$2"
+  mkdir -p "$(dirname "$destination")"
+  cp -p "$source" "$destination"
+  copied_count=$((copied_count + 1))
+  echo "copied $destination"
+}
+
+deploy_file() {
+  local relative_path="$1"
+  local root="$2"
+  local source="$root/$relative_path"
+  local destination="$HOME/$relative_path"
+
+  if [[ -L "$source" ]]; then
+    warn "skipping symlink source $relative_path"
+    return 0
+  fi
+
+  if [[ ! -e "$destination" ]]; then
+    copy_new_file "$source" "$destination"
+    return 0
+  fi
+
+  if [[ -f "$destination" ]] && cmp -s "$source" "$destination"; then
+    skipped_count=$((skipped_count + 1))
+    echo "identical $destination"
+    return 0
+  fi
+
+  echo "conflict $destination"
+  skipped_count=$((skipped_count + 1))
+}
+
+deploy_directory() {
+  local relative_path="$1"
+  local root="$2"
+  local source_dir="$root/$relative_path"
+  local file
+
+  while IFS= read -r -d '' file; do
+    file="${file#"$root/"}"
+    deploy_file "$file" "$root"
+  done < <(find "$source_dir" -type f -print0)
+}
+
+deploy_path() {
+  local relative_path="$1"
+  local root="$2"
+  local source="$root/$relative_path"
+
+  if [[ ! -e "$source" ]]; then
+    warn "allowlist path missing: $relative_path"
+    return 0
+  fi
+
+  if [[ -L "$source" ]]; then
+    warn "skipping symlink source $relative_path"
+    return 0
+  fi
+
+  if [[ -d "$source" ]]; then
+    deploy_directory "$relative_path" "$root"
+  elif [[ -f "$source" ]]; then
+    deploy_file "$relative_path" "$root"
+  else
+    warn "skipping unsupported source type: $relative_path"
+  fi
+}
+
+main() {
+  validate_home
+  local root
+  root="$(repo_root)"
+
+  local path
+  for path in "${ALLOWLIST[@]}"; do
+    deploy_path "$path" "$root"
+  done
+
+  echo "Summary: copied=$copied_count skipped=$skipped_count warnings=$warning_count"
+}
+
+main "$@"
