@@ -131,6 +131,22 @@ test_conflict_diff_then_no_shows_diff_and_skips() {
   assert_file_content "$TEST_ROOT/home/.bashrc" "home"
 }
 
+test_directory_conflict_yes_replaces_and_backs_up() {
+  setup_repo
+  trap cleanup_repo RETURN
+  mkdir -p "$TEST_ROOT/repo/.config/i3" "$TEST_ROOT/home/.config/i3"
+  printf 'repo config\n' > "$TEST_ROOT/repo/.config/i3/config"
+  printf 'home config\n' > "$TEST_ROOT/home/.config/i3/config"
+
+  run_deploy_with_input 'y\n' > "$TEST_ROOT/output.txt"
+
+  assert_file_content "$TEST_ROOT/home/.config/i3/config" "repo config"
+  local backup_file
+  backup_file="$(find "$TEST_ROOT/home/.dotfiles-deploy-backup" -type f -path '*/.config/i3/config' -print -quit)"
+  [[ -n "$backup_file" ]] || fail "expected .config/i3/config backup file"
+  assert_file_content "$backup_file" "home config"
+}
+
 test_conflict_quit_aborts_before_later_files() {
   setup_repo
   trap cleanup_repo RETURN
@@ -160,6 +176,7 @@ run_test test_refuses_root_home
 run_test test_conflict_no_skips_without_backup
 run_test test_conflict_yes_replaces_and_backs_up
 run_test test_conflict_diff_then_no_shows_diff_and_skips
+run_test test_directory_conflict_yes_replaces_and_backs_up
 run_test test_conflict_quit_aborts_before_later_files
 
 echo "All deploy-dotfiles tests passed"

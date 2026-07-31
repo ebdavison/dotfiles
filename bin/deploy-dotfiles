@@ -150,10 +150,10 @@ deploy_directory() {
   local source_dir="$root/$relative_path"
   local file
 
-  while IFS= read -r -d '' file; do
+  while IFS= read -r -d '' -u 9 file; do
     file="${file#"$root/"}"
     deploy_file "$file" "$root"
-  done < <(find "$source_dir" -type f -print0)
+  done 9< <(find "$source_dir" -type f -print0)
 }
 
 deploy_path() {
