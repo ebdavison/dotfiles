@@ -207,6 +207,38 @@ test_symlink_sources_are_skipped() {
   grep -q 'WARN: skipping symlink source .config/linked.conf' "$TEST_ROOT/error.txt" || fail "expected nested symlink warning"
 }
 
+test_destination_symlink_file_is_skipped_without_modifying_target() {
+  setup_repo
+  trap cleanup_repo RETURN
+  mkdir -p "$TEST_ROOT/outside"
+  printf 'repo\n' > "$TEST_ROOT/repo/.bashrc"
+  printf 'outside target\n' > "$TEST_ROOT/outside/target"
+  ln -s "$TEST_ROOT/outside/target" "$TEST_ROOT/home/.bashrc"
+
+  run_deploy_with_input 'y\n' > "$TEST_ROOT/output.txt" 2> "$TEST_ROOT/error.txt"
+
+  [[ -L "$TEST_ROOT/home/.bashrc" ]] || fail "expected destination symlink to remain in place"
+  assert_file_content "$TEST_ROOT/outside/target" "outside target"
+  assert_file_missing "$TEST_ROOT/home/.dotfiles-deploy-backup"
+  grep -q 'WARN: skipping symlink destination .bashrc' "$TEST_ROOT/error.txt" || fail "expected destination symlink warning"
+}
+
+test_destination_symlink_inside_directory_is_skipped_without_modifying_target() {
+  setup_repo
+  trap cleanup_repo RETURN
+  mkdir -p "$TEST_ROOT/repo/.config/i3" "$TEST_ROOT/home/.config/i3" "$TEST_ROOT/outside"
+  printf 'repo config\n' > "$TEST_ROOT/repo/.config/i3/config"
+  printf 'outside config\n' > "$TEST_ROOT/outside/config-target"
+  ln -s "$TEST_ROOT/outside/config-target" "$TEST_ROOT/home/.config/i3/config"
+
+  run_deploy_with_input 'y\n' > "$TEST_ROOT/output.txt" 2> "$TEST_ROOT/error.txt"
+
+  [[ -L "$TEST_ROOT/home/.config/i3/config" ]] || fail "expected nested destination symlink to remain in place"
+  assert_file_content "$TEST_ROOT/outside/config-target" "outside config"
+  assert_file_missing "$TEST_ROOT/home/.dotfiles-deploy-backup"
+  grep -q 'WARN: skipping symlink destination .config/i3/config' "$TEST_ROOT/error.txt" || fail "expected nested destination symlink warning"
+}
+
 run_test() {
   local name="$1"
   echo "Running $name"
@@ -225,5 +257,7 @@ run_test test_conflict_quit_aborts_before_later_files
 run_test test_directory_deploys_recursively_and_preserves_destination_only_files
 run_test test_missing_allowlist_paths_warn_but_do_not_fail
 run_test test_symlink_sources_are_skipped
+run_test test_destination_symlink_file_is_skipped_without_modifying_target
+run_test test_destination_symlink_inside_directory_is_skipped_without_modifying_target
 
 echo "All deploy-dotfiles tests passed"

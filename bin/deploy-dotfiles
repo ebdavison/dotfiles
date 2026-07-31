@@ -124,6 +124,12 @@ deploy_file() {
     return 0
   fi
 
+  if [[ -L "$destination" ]]; then
+    warn "skipping symlink destination $relative_path"
+    skipped_count=$((skipped_count + 1))
+    return 0
+  fi
+
   if [[ ! -e "$destination" ]]; then
     copy_new_file "$source" "$destination"
     return 0
