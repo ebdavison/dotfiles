@@ -18,6 +18,9 @@ ALLOWLIST=(
 copied_count=0
 skipped_count=0
 warning_count=0
+backup_stamp="${DOTFILES_DEPLOY_BACKUP_STAMP:-$(date +%Y%m%d-%H%M%S)}"
+backup_root=""
+replaced_count=0
 
 repo_root() {
   local script_dir
@@ -46,6 +49,70 @@ copy_new_file() {
   echo "copied $destination"
 }
 
+backup_existing() {
+  local destination="$1"
+  local relative_path="$2"
+  backup_root="$HOME/.dotfiles-deploy-backup/$backup_stamp"
+  local backup_path="$backup_root/$relative_path"
+  mkdir -p "$(dirname "$backup_path")"
+  cp -p "$destination" "$backup_path"
+  echo "backed up $destination to $backup_path"
+}
+
+replace_file() {
+  local source="$1"
+  local destination="$2"
+  local relative_path="$3"
+  backup_existing "$destination" "$relative_path"
+  cp -p "$source" "$destination"
+  replaced_count=$((replaced_count + 1))
+  echo "replaced $destination"
+}
+
+show_diff() {
+  local source="$1"
+  local destination="$2"
+  diff -u --label "$destination" --label "$source" "$destination" "$source" || true
+}
+
+prompt_conflict() {
+  local source="$1"
+  local destination="$2"
+  local relative_path="$3"
+  local answer
+
+  while true; do
+    printf 'Conflict: %s differs. [d]iff, [y]es replace, [n]o skip, [q]uit: ' "$destination" >&2
+    if ! IFS= read -r answer; then
+      echo "No answer received; skipping $destination" >&2
+      skipped_count=$((skipped_count + 1))
+      return 0
+    fi
+
+    case "$answer" in
+      d|D|diff|DIFF)
+        show_diff "$source" "$destination"
+        ;;
+      y|Y|yes|YES)
+        replace_file "$source" "$destination" "$relative_path"
+        return 0
+        ;;
+      n|N|no|NO|"")
+        skipped_count=$((skipped_count + 1))
+        echo "skipped $destination"
+        return 0
+        ;;
+      q|Q|quit|QUIT)
+        echo "Aborted by user" >&2
+        exit 130
+        ;;
+      *)
+        echo "Please answer d, y, n, or q." >&2
+        ;;
+    esac
+  done
+}
+
 deploy_file() {
   local relative_path="$1"
   local root="$2"
@@ -68,8 +135,13 @@ deploy_file() {
     return 0
   fi
 
-  echo "conflict $destination"
-  skipped_count=$((skipped_count + 1))
+  if [[ ! -f "$destination" ]]; then
+    warn "destination exists but is not a regular file: $relative_path"
+    skipped_count=$((skipped_count + 1))
+    return 0
+  fi
+
+  prompt_conflict "$source" "$destination" "$relative_path"
 }
 
 deploy_directory() {
@@ -118,7 +190,7 @@ main() {
     deploy_path "$path" "$root"
   done
 
-  echo "Summary: copied=$copied_count skipped=$skipped_count warnings=$warning_count"
+  echo "Summary: copied=$copied_count replaced=$replaced_count skipped=$skipped_count warnings=$warning_count"
 }
 
 main "$@"

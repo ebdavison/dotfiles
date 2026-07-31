@@ -86,6 +86,67 @@ test_refuses_root_home() {
   grep -q 'Refusing to run with unsafe HOME' "$TEST_ROOT/output.txt" || fail "missing unsafe HOME message"
 }
 
+run_deploy_with_input() {
+  local input="$1"
+  printf '%b' "$input" | (cd /tmp && HOME="$TEST_ROOT/home" "$TEST_ROOT/repo/bin/deploy-dotfiles")
+}
+
+test_conflict_no_skips_without_backup() {
+  setup_repo
+  trap cleanup_repo RETURN
+  printf 'repo\n' > "$TEST_ROOT/repo/.bashrc"
+  printf 'home\n' > "$TEST_ROOT/home/.bashrc"
+
+  run_deploy_with_input 'n\n' > "$TEST_ROOT/output.txt"
+
+  assert_file_content "$TEST_ROOT/home/.bashrc" "home"
+  assert_file_missing "$TEST_ROOT/home/.dotfiles-deploy-backup"
+}
+
+test_conflict_yes_replaces_and_backs_up() {
+  setup_repo
+  trap cleanup_repo RETURN
+  printf 'repo\n' > "$TEST_ROOT/repo/.bashrc"
+  printf 'home\n' > "$TEST_ROOT/home/.bashrc"
+
+  run_deploy_with_input 'y\n' > "$TEST_ROOT/output.txt"
+
+  assert_file_content "$TEST_ROOT/home/.bashrc" "repo"
+  local backup_file
+  backup_file="$(find "$TEST_ROOT/home/.dotfiles-deploy-backup" -type f -path '*/.bashrc' -print -quit)"
+  [[ -n "$backup_file" ]] || fail "expected .bashrc backup file"
+  assert_file_content "$backup_file" "home"
+}
+
+test_conflict_diff_then_no_shows_diff_and_skips() {
+  setup_repo
+  trap cleanup_repo RETURN
+  printf 'repo\n' > "$TEST_ROOT/repo/.bashrc"
+  printf 'home\n' > "$TEST_ROOT/home/.bashrc"
+
+  run_deploy_with_input 'd\nn\n' > "$TEST_ROOT/output.txt"
+
+  grep -q '^-home' "$TEST_ROOT/output.txt" || fail "expected old line in diff"
+  grep -q '^+repo' "$TEST_ROOT/output.txt" || fail "expected new line in diff"
+  assert_file_content "$TEST_ROOT/home/.bashrc" "home"
+}
+
+test_conflict_quit_aborts_before_later_files() {
+  setup_repo
+  trap cleanup_repo RETURN
+  printf 'repo bashrc\n' > "$TEST_ROOT/repo/.bashrc"
+  printf 'home bashrc\n' > "$TEST_ROOT/home/.bashrc"
+  printf 'repo vimrc\n' > "$TEST_ROOT/repo/.vimrc"
+
+  if run_deploy_with_input 'q\n' > "$TEST_ROOT/output.txt" 2>&1; then
+    fail "expected quit to return non-zero"
+  fi
+
+  assert_file_content "$TEST_ROOT/home/.bashrc" "home bashrc"
+  assert_file_missing "$TEST_ROOT/home/.vimrc"
+  grep -q 'Aborted by user' "$TEST_ROOT/output.txt" || fail "missing abort message"
+}
+
 run_test() {
   local name="$1"
   echo "Running $name"
@@ -96,5 +157,9 @@ run_test test_copies_new_allowlisted_file
 run_test test_skips_identical_file_without_backup
 run_test test_refuses_empty_home
 run_test test_refuses_root_home
+run_test test_conflict_no_skips_without_backup
+run_test test_conflict_yes_replaces_and_backs_up
+run_test test_conflict_diff_then_no_shows_diff_and_skips
+run_test test_conflict_quit_aborts_before_later_files
 
 echo "All deploy-dotfiles tests passed"
