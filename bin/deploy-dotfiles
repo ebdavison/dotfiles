@@ -13,6 +13,7 @@ ALLOWLIST=(
   ".viminfo"
   ".config"
   ".poshthemes"
+  "bin"
 )
 
 copied_count=0
@@ -40,11 +41,76 @@ warn() {
   echo "WARN: $*" >&2
 }
 
+is_non_executable_data_file() {
+  local relative_path="$1"
+
+  case "$relative_path" in
+    *.conf|*.txt|*.log|*.ini|*.json|*.toml|*.yaml|*.yml|*.md|*.rst|*.csv|*.tsv|*.tar|*.tar.gz|*.tgz|*.gz|*.zip|*.bat)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+has_script_extension() {
+  local path="$1"
+
+  case "$path" in
+    *.sh|*.bash|*.zsh|*.py|*.pl|*.rb|*.awk)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+has_shebang() {
+  local source="$1"
+  IFS= read -r first_line < "$source" || true
+  [[ "$first_line" == '#!'* ]]
+}
+
+should_be_executable() {
+  local relative_path="$1"
+  local source="$2"
+
+  if is_non_executable_data_file "$relative_path"; then
+    return 1
+  fi
+
+  if [[ "$relative_path" == bin/* ]]; then
+    return 0
+  fi
+
+  if [[ -x "$source" ]] || has_script_extension "$relative_path" || has_shebang "$source"; then
+    return 0
+  fi
+
+  return 1
+}
+
+normalize_permissions() {
+  local relative_path="$1"
+  local source="$2"
+  local destination="$3"
+
+  if should_be_executable "$relative_path" "$source"; then
+    chmod 755 "$destination"
+  else
+    chmod 644 "$destination"
+  fi
+}
+
 copy_new_file() {
   local source="$1"
   local destination="$2"
+  local relative_path="$3"
   mkdir -p "$(dirname "$destination")"
-  cp -p "$source" "$destination"
+  cp "$source" "$destination"
+  normalize_permissions "$relative_path" "$source" "$destination"
   copied_count=$((copied_count + 1))
   echo "copied $destination"
 }
@@ -64,7 +130,8 @@ replace_file() {
   local destination="$2"
   local relative_path="$3"
   backup_existing "$destination" "$relative_path"
-  cp -p "$source" "$destination"
+  cp "$source" "$destination"
+  normalize_permissions "$relative_path" "$source" "$destination"
   replaced_count=$((replaced_count + 1))
   echo "replaced $destination"
 }
@@ -131,11 +198,12 @@ deploy_file() {
   fi
 
   if [[ ! -e "$destination" ]]; then
-    copy_new_file "$source" "$destination"
+    copy_new_file "$source" "$destination" "$relative_path"
     return 0
   fi
 
   if [[ -f "$destination" ]] && cmp -s "$source" "$destination"; then
+    normalize_permissions "$relative_path" "$source" "$destination"
     skipped_count=$((skipped_count + 1))
     echo "identical $destination"
     return 0
