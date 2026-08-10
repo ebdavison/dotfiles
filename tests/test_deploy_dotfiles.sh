@@ -23,6 +23,16 @@ assert_file_missing() {
   [[ ! -e "$file" ]] || fail "expected path to be missing: $file"
 }
 
+assert_executable() {
+  local file="$1"
+  [[ -x "$file" ]] || fail "expected file to be executable: $file"
+}
+
+assert_not_executable() {
+  local file="$1"
+  [[ ! -x "$file" ]] || fail "expected file to not be executable: $file"
+}
+
 setup_repo() {
   TEST_ROOT="$(mktemp -d)"
   mkdir -p "$TEST_ROOT/repo/bin" "$TEST_ROOT/home"
@@ -178,6 +188,33 @@ test_directory_deploys_recursively_and_preserves_destination_only_files() {
   assert_file_content "$TEST_ROOT/home/.config/keep/local.conf" "home only"
 }
 
+test_deploys_bin_to_home_bin_and_normalizes_executable_bits() {
+  setup_repo
+  trap cleanup_repo RETURN
+  mkdir -p "$TEST_ROOT/repo/bin"
+  cat <<'EOF' > "$TEST_ROOT/repo/bin/example.sh"
+#!/usr/bin/env bash
+exit 0
+EOF
+  cat <<'EOF' > "$TEST_ROOT/repo/bin/example.py"
+#!/usr/bin/env python3
+print('ok')
+EOF
+  printf 'alias ll="ls -al"\n' > "$TEST_ROOT/repo/bin/example.conf"
+  printf 'notes\n' > "$TEST_ROOT/repo/bin/example.txt"
+
+  run_deploy > "$TEST_ROOT/output.txt"
+
+  assert_file_content "$TEST_ROOT/home/bin/example.sh" $'#!/usr/bin/env bash\nexit 0'
+  assert_file_content "$TEST_ROOT/home/bin/example.py" $'#!/usr/bin/env python3\nprint('\''ok'\'')'
+  assert_file_content "$TEST_ROOT/home/bin/example.conf" 'alias ll="ls -al"'
+  assert_file_content "$TEST_ROOT/home/bin/example.txt" 'notes'
+  assert_executable "$TEST_ROOT/home/bin/example.sh"
+  assert_executable "$TEST_ROOT/home/bin/example.py"
+  assert_not_executable "$TEST_ROOT/home/bin/example.conf"
+  assert_not_executable "$TEST_ROOT/home/bin/example.txt"
+}
+
 test_missing_allowlist_paths_warn_but_do_not_fail() {
   setup_repo
   trap cleanup_repo RETURN
@@ -255,6 +292,7 @@ run_test test_conflict_diff_then_no_shows_diff_and_skips
 run_test test_directory_conflict_yes_replaces_and_backs_up
 run_test test_conflict_quit_aborts_before_later_files
 run_test test_directory_deploys_recursively_and_preserves_destination_only_files
+run_test test_deploys_bin_to_home_bin_and_normalizes_executable_bits
 run_test test_missing_allowlist_paths_warn_but_do_not_fail
 run_test test_symlink_sources_are_skipped
 run_test test_destination_symlink_file_is_skipped_without_modifying_target

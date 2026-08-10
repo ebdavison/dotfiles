@@ -13,13 +13,13 @@ The repo is intentionally practical rather than polished. Files are organized by
 
 ## Dotfiles deploy
 
-Use [`bin/deploy-dotfiles`](bin/deploy-dotfiles) to copy the curated shell, Vim, `.config`, and oh-my-posh theme files from this repository into the logged-in user's home directory.
+Use [`bin/deploy-dotfiles`](bin/deploy-dotfiles) to copy the curated shell, Vim, `.config`, `bin/`, and oh-my-posh theme files from this repository into the logged-in user's home directory.
 
 ```bash
 ./bin/deploy-dotfiles
 ```
 
-The script deploys only an explicit allowlist, not the whole repository. Current deploy targets include Bash startup files, `.bashrc.d/`, Vim config, `.config/`, and `.poshthemes/`.
+The script deploys only an explicit allowlist, not the whole repository. Current deploy targets include Bash startup files, `.bashrc.d/`, Vim config, `.config/`, `.poshthemes/`, and `bin/` into `~/bin/`.
 
 Existing files are handled safely:
 
@@ -27,6 +27,7 @@ Existing files are handled safely:
 - differing files prompt for `[d]iff`, `[y]es replace`, `[n]o skip`, or `[q]uit`
 - replaced files are backed up under `~/.dotfiles-deploy-backup/YYYYMMDD-HHMMSS/`
 - destination-only files under deployed directories are left untouched
+- deployed files have permissions normalized so scripts stay executable and config/text files do not
 
 ## Kimai CLI
 
