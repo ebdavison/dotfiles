@@ -19,6 +19,14 @@ font pango:monospace 8
 # text rendering and scalability on retina/hidpi displays (thanks to pango).
 #font pango:DejaVu Sans Mono 8
 
+# start the graphical session
+# systemctl --user set-environment XDG_SESSION_TYPE=x11 XDG_CURRENT_DESKTOP=i3
+# systemctl --user start --no-block xdg-desktop-portal.service
+exec --no-startup-id systemctl --user import-environment DISPLAY XAUTHORITY I3SOCK
+# exec --no-startup-id systemctl --user start graphical-session.target
+exec --no-startup-id systemctl --user start id-session.target
+exec --no-startup-id systemctl --user start xdg-desktop-portal
+
 # Start XDG autostart .desktop files using dex. See also
 # https://wiki.archlinux.org/index.php/XDG_Autostart
 exec --no-startup-id dex-autostart --autostart --environment i3
@@ -46,8 +54,8 @@ floating_modifier $mod
 
 # start a terminal
 #bindsym $mod+Return exec i3-sensible-terminal
-#bindsym $mod+Return exec /usr/local/bin/st -t "Simple Terminal" -f "Source Code Pro:style=Semibold:size=10"
-bindsym $mod+Return exec /usr/local/bin/st -t "Simple Terminal" 
+#bindsym $mod+Return exec st -t "Simple Terminal" -f "Source Code Pro:style=Semibold:size=10"
+bindsym $mod+Return exec /usr/bin/ghostty
 #bindsym $mod+Return exec xterm
 
 # kill focused window
@@ -145,6 +153,7 @@ set $ws9 "9"
 set $ws10 "10"
 
 # switch to workspace
+bindsym $mod+Tab workspace back_and_forth
 bindsym $mod+1 workspace number $ws1
 bindsym $mod+2 workspace number $ws2
 bindsym $mod+3 workspace number $ws3
@@ -202,6 +211,10 @@ mode "resize" {
 
 bindsym $mod+r mode "resize"
 
+bindsym $mod+t exec --no-startup-id rofi -show ssh -matching regex -ssh-command "rofi-rtat {host}" ^
+bindsym $alt+$mod+t exec --no-startup-id rofi -show ssh -matching regex -ssh-command "rofi-rtat root@{host}" ^
+bindsym $mod+p exec --no-startup-id rofi-rbw 
+
 # class                 border  bground text    indicator child_border
 client.focused          #83CAFA #51A2DA #FFFFFF #83CAFA   #51A2DA
 client.focused_inactive #8C8C8C #4C4C4C #FFFFFF #4C4C4C   #8C8C8C
@@ -240,7 +253,7 @@ exec --no-startup-id lxpolkit
 
 # lock screen
 # https://michaelabrahamsen.com/posts/custom-lockscreen-i3lock/
-exec xautolock -detectsleep -time 5 -locker "/mnt/fedora/home/edavison/bin/lock_and_blur.sh" -notify 30 -notifier "notify-send -u critical -t 10000 -- 'locking screen in 30 seconds'"
+#exec xautolock -detectsleep -time 5 -locker "/mnt/fedora/home/edavison/bin/lock_and_blur.sh" -notify 30 -notifier "notify-send -u critical -t 10000 -- 'locking screen in 30 seconds'"
 
 # startup apps
 exec picom
@@ -249,7 +262,9 @@ exec /usr/bin/rescuetime
 #exec bluemon-applet
 exec vorta
 exec /opt/Data/Software/companion-x64/companion-launcher
-exec /usr/bin/flameshot
+#exec /usr/bin/flameshot
+# Start xss-lock with xsecurelock
+exec --no-startup-id xss-lock --transfer-sleep-lock -- xsecurelock
 
 # shutdown / restart / suspend...
 set $mode_system System (l) lock, (e) logout, (s) suspend, (h) hibernate, (r) reboot, (CTRL+s) shutdown
@@ -276,6 +291,7 @@ bindsym $mod+Ctrl+greater move workspace to output next
 
 exec --no-startup-id /usr/libexec/gsd-xsettings
 exec --no-startup-id /usr/libexec/polkit-gnome-authentication-agent-1
+exec --no-startup-id /usr/bin/blueman-applet
 
 # Assign apps to workspaces
 assign [class="Wavebox"] 1
@@ -289,7 +305,6 @@ assign [class="Evolution"] 5
 assign [class="telegram"] 6
 assign [class="Youp"] 6
 assign [class="vscode"] 7
-assign [class="zed"] 7
 assign [class="chromium"] 9
 
 # got from bashbunni
