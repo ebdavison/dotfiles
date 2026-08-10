@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MANAGED_PI_FILES=(
+  ".pi/agent/AGENTS.md"
+  ".pi/agent/settings.json"
+  ".pi/agent/extensions/ai-eos-context.ts"
+  ".pi/agent/bin/pi-env"
+  ".pi/agent/bin/pi-personal"
+  ".pi/agent/bin/pi-work"
+  ".pi/agent/lib/skip-startup-fd.mjs"
+  ".pi/agent/tests/test-ai-eos-checkpointing.mjs"
+)
+
+SHARED_PROFILE_LINKS=(
+  "AGENTS.md:.pi/agent/AGENTS.md"
+  "extensions:.pi/agent/extensions"
+  "settings.json:.pi/agent/settings.json"
+  "npm:.pi/agent/npm"
+  "skills:.pi/agent/skills"
+  "models-store.json:.pi/agent/models-store.json"
+)
+
+AI_EOS_PROFILE_LINKS=(
+  "USER.md:.ai-eos/USER.md"
+  "SOUL.md:.ai-eos/SOUL.md"
+  "MEMORY.md:.ai-eos/MEMORY.md"
+  "memory:.ai-eos/memory"
+)
+
+repo_root() {
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+  cd "$script_dir/.." && pwd -P
+}
+
+validate_home() {
+  if [[ -z "${HOME:-}" || "$HOME" == "/" ]]; then
+    echo "Refusing to run with unsafe HOME: ${HOME:-<empty>}" >&2
+    exit 2
+  fi
+}
+
+validate_ai_eos() {
+  if [[ "${PI_DEPLOY_ALLOW_MISSING_AI_EOS:-0}" == "1" ]]; then
+    return 0
+  fi
+
+  if [[ ! -f "$HOME/.ai-eos/AGENT_ORIENTATION_PROMPT.md" ]]; then
+    echo "AI-EOS orientation file is missing: $HOME/.ai-eos/AGENT_ORIENTATION_PROMPT.md" >&2
+    echo "Set up/sync AI-EOS first, or set PI_DEPLOY_ALLOW_MISSING_AI_EOS=1 to deploy Pi files anyway." >&2
+    exit 2
+  fi
+}
+
+copy_managed_file() {
+  local relative_path="$1"
+  local repo="$2"
+  local source="$repo/$relative_path"
+  local destination="$HOME/$relative_path"
+
+  if [[ ! -f "$source" ]]; then
+    echo "WARN: missing repo file $source" >&2
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$destination")"
+  cp -p "$source" "$destination"
+
+  case "$relative_path" in
+    .pi/agent/bin/*)
+      chmod 755 "$destination"
+      ;;
+    *)
+      chmod 644 "$destination"
+      ;;
+  esac
+
+  echo "deployed $relative_path"
+}
+
+ensure_dir() {
+  local path="$1"
+  mkdir -p "$path"
+}
+
+ensure_link() {
+  local link="$1"
+  local target="$2"
+
+  if [[ -L "$link" ]]; then
+    local current
+    current="$(readlink "$link")"
+    if [[ "$current" == "$target" ]]; then
+      return 0
+    fi
+    rm "$link"
+  elif [[ -e "$link" ]]; then
+    echo "WARN: refusing to replace non-symlink profile path $link" >&2
+    return 0
+  fi
+
+  ln -s "$target" "$link"
+}
+
+create_profile() {
+  local profile_dir="$1"
+  local item name target absolute_target
+
+  ensure_dir "$profile_dir"
+  ensure_dir "$profile_dir/sessions"
+  touch "$profile_dir/run-history.jsonl"
+
+  for item in "${SHARED_PROFILE_LINKS[@]}"; do
+    name="${item%%:*}"
+    target="${item#*:}"
+    absolute_target="$HOME/$target"
+    if [[ -e "$absolute_target" || -L "$absolute_target" ]]; then
+      ensure_link "$profile_dir/$name" "$absolute_target"
+    fi
+  done
+
+  for item in "${AI_EOS_PROFILE_LINKS[@]}"; do
+    name="${item%%:*}"
+    target="${item#*:}"
+    absolute_target="$HOME/$target"
+    if [[ -e "$absolute_target" || -L "$absolute_target" ]]; then
+      ensure_link "$profile_dir/$name" "$absolute_target"
+    fi
+  done
+}
+
+main() {
+  validate_home
+  validate_ai_eos
+
+  local repo relative_path
+  repo="$(repo_root)"
+
+  for relative_path in "${MANAGED_PI_FILES[@]}"; do
+    copy_managed_file "$relative_path" "$repo"
+  done
+
+  create_profile "$HOME/.pi-personal"
+  create_profile "$HOME/.pi-work"
+
+  echo "Pi file deploy complete. Restart Pi or run /reload in existing sessions."
+}
+
+main "$@"

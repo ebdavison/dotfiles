@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+client="${PI_CLIENT:-Cisco}"
+args=()
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -c|--client)
+      [ "$#" -ge 2 ] || { echo "pi-work: $1 requires a value" >&2; exit 2; }
+      client="$2"
+      shift 2
+      ;;
+    --help|-h)
+      cat <<'EOF'
+Usage: pi-work [-c|--client CLIENT] [--] [pi args...]
+
+Starts Pi with the work profile. Client precedence:
+1. -c / --client
+2. PI_CLIENT
+3. Cisco
+EOF
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      args+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [ "$#" -gt 0 ]; then
+  args+=("$@")
+fi
+
+exec "$HOME/.pi/agent/bin/pi-env" \
+  --agent-dir "$HOME/.pi-work" \
+  --client "$client" \
+  -- "${args[@]}"

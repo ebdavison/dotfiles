@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: pi-env --agent-dir DIR [--client CLIENT] [--] [pi args...]
+
+Sets Pi profile environment variables, then execs the system pi binary.
+EOF
+}
+
+agent_dir=""
+client=""
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --agent-dir)
+      [ "$#" -ge 2 ] || { echo "pi-env: --agent-dir requires a value" >&2; exit 2; }
+      agent_dir="$2"
+      shift 2
+      ;;
+    --client)
+      [ "$#" -ge 2 ] || { echo "pi-env: --client requires a value" >&2; exit 2; }
+      client="$2"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+[ -n "$agent_dir" ] || { usage >&2; exit 2; }
+
+export PI_CODING_AGENT_DIR="$agent_dir"
+export AI_EOS_HOME="${AI_EOS_HOME:-$HOME/.ai-eos}"
+if [ ! -f "$AI_EOS_HOME/AGENT_ORIENTATION_PROMPT.md" ]; then
+  echo "AI-EOS is unavailable at: $AI_EOS_HOME" >&2
+  exit 1
+fi
+export PI_SKIP_STARTUP_FD=1
+preload_module="$HOME/.pi/agent/lib/skip-startup-fd.mjs"
+if [ -n "${NODE_OPTIONS:-}" ]; then
+  export NODE_OPTIONS="--import=$preload_module ${NODE_OPTIONS}"
+else
+  export NODE_OPTIONS="--import=$preload_module"
+fi
+if [ -n "$client" ]; then
+  export PI_CLIENT="$client"
+fi
+
+exec pi "$@"

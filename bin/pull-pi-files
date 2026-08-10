@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MANAGED_PI_FILES=(
+  ".pi/agent/AGENTS.md"
+  ".pi/agent/settings.json"
+  ".pi/agent/extensions/ai-eos-context.ts"
+  ".pi/agent/bin/pi-env"
+  ".pi/agent/bin/pi-personal"
+  ".pi/agent/bin/pi-work"
+  ".pi/agent/lib/skip-startup-fd.mjs"
+  ".pi/agent/tests/test-ai-eos-checkpointing.mjs"
+)
+
+repo_root() {
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+  cd "$script_dir/.." && pwd -P
+}
+
+source_home() {
+  printf '%s\n' "${PI_SOURCE_HOME:-$HOME}"
+}
+
+copy_managed_file() {
+  local relative_path="$1"
+  local home_root="$2"
+  local repo="$3"
+  local source="$home_root/$relative_path"
+  local destination="$repo/$relative_path"
+
+  if [[ ! -f "$source" ]]; then
+    echo "WARN: missing source $source" >&2
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$destination")"
+  cp -p "$source" "$destination"
+  echo "pulled $relative_path"
+}
+
+main() {
+  local home_root repo relative_path
+  home_root="$(source_home)"
+  repo="$(repo_root)"
+
+  for relative_path in "${MANAGED_PI_FILES[@]}"; do
+    copy_managed_file "$relative_path" "$home_root" "$repo"
+  done
+
+  echo "Pi file pull complete. Review git diff before committing."
+}
+
+main "$@"
