@@ -12,9 +12,9 @@ assert.match(source, /registerTool\s*\(\s*{[\s\S]*name:\s*["']ai_eos_memory_chec
   'AI-EOS extension should register ai_eos_memory_checkpoint tool');
 assert.match(source, /pi\.on\(["']agent_settled["']/,
   'AI-EOS extension should hook agent_settled to check for missing checkpoints');
-assert.match(source, /pi\.on\(["']tool_result["']/,
-  'AI-EOS extension should observe tool results to detect mutations and checkpoint calls');
-assert.match(source, /appendDatedMemoryEntry/,
+assert.match(source, /pi\.on\(["']tool_call["']/,
+  'AI-EOS extension should observe tool calls to detect mutations and checkpoint calls');
+assert.match(source, /appendMemoryCheckpoint/,
   'AI-EOS extension should append structured entries to dated memory files');
 assert.match(source, /ai-eos-checkpoint-status/,
   'AI-EOS extension should expose a status command for checkpoint state');
