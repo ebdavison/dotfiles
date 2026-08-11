@@ -1,19 +1,7 @@
-// Global AI-EOS context injector/checkpointer for Pi.
-// Loads the canonical Obsidian-backed engineering context into every agent turn
-// and exposes checkpoint tooling so significant work is recorded durably.
-
-// @ts-nocheck
-
-import { Type } from "typebox";
-import { existsSync, readFileSync, readdirSync, statSync, mkdirSync, appendFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-
-const AI_EOS_ROOT = resolve(process.env.AI_EOS_HOME || join(homedir(), ".ai-eos"));
-const MAX_FILE_BYTES = 90_000;
-const MAX_MEMORY_FILE_BYTES = 70_000;
-const CHECKPOINT_CUSTOM_TYPE = "ai-eos-checkpoint";
-const CHECKPOINT_WARNING_CUSTOM_TYPE = "ai-eos-checkpoint-warning";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const CORE_FILES = [
   "USER.md",
@@ -29,284 +17,386 @@ const CORE_FILES = [
   "AI/LESSONS_LEARNED.md",
 ];
 
-const MUTATION_TOOLS = new Set(["edit", "write", "impeccable_live_reply", "impeccable_live_complete"]);
-const SECRET_HINT = /(?:api[_-]?key|token|password|passwd|secret|private[_-]?key|credential|cookie|authorization)/i;
+const MAX_FILE_CHARS = 30_000;
+const RECENT_MEMORY_LIMIT = 3;
+const MEMORY_STATUS_KEY = "ai-eos";
 
-function todayInChicago(): string {
+type FileState = {
+  exists: boolean;
+  size: number;
+  mtimeMs: number;
+};
+
+type AgentRunMemoryState = {
+  dailyPath: string;
+  before: FileState;
+  needsCheckpoint: boolean;
+  usedCheckpointTool: boolean;
+  prompt: string;
+};
+
+export type MemoryCheckpointInput = {
+  title: string;
+  tag: string;
+  client?: string;
+  repo?: string;
+  branch?: string;
+  task: string;
+  context: string;
+  filesChanged?: string[];
+  checksRun?: string[];
+  commitInfo?: string;
+  followUps?: string[];
+};
+
+const runStateBySession = new Map<string, AgentRunMemoryState>();
+
+function expandHome(input: string): string {
+  if (input === "~") {
+    return os.homedir();
+  }
+  if (input.startsWith("~/")) {
+    return path.join(os.homedir(), input.slice(2));
+  }
+  return input;
+}
+
+export function aiEosHome(): string {
+  return expandHome(process.env.AI_EOS_HOME || path.join(os.homedir(), ".ai-eos"));
+}
+
+function readText(filePath: string): string {
+  try {
+    return fs.readFileSync(filePath, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+function excerpt(text: string, maxChars = MAX_FILE_CHARS): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, maxChars).trimEnd()}\n\n[Truncated in Pi startup context. Read the source file directly when full detail matters.]`;
+}
+
+function section(root: string, relativePath: string): { text: string; missing: boolean } {
+  const filePath = path.join(root, relativePath);
+  const text = readText(filePath);
+  if (!text) {
+    return {
+      missing: true,
+      text: `### ${relativePath}\n[Missing or unreadable at ${filePath}]`,
+    };
+  }
+
+  return {
+    missing: false,
+    text: `### ${relativePath}\n${excerpt(text)}`,
+  };
+}
+
+function recentMemoryFiles(root: string): string[] {
+  const memoryDir = path.join(root, "memory");
+  try {
+    return fs
+      .readdirSync(memoryDir)
+      .filter((name) => /^Memory \d{4}-\d{2}-\d{2}\.md$/.test(name))
+      .sort()
+      .slice(-RECENT_MEMORY_LIMIT)
+      .map((name) => path.join("memory", name));
+  } catch {
+    return [];
+  }
+}
+
+function preferredTimezone(root: string): string {
+  const userText = readText(path.join(root, "USER.md"));
+  const match = /^\s*-?\s*\*\*Timezone:\*\*\s*([^\n]+)/m.exec(userText) || /^\s*Timezone:\s*([^\n]+)/m.exec(userText);
+  return match?.[1]?.trim() || process.env.TZ || "America/Chicago";
+}
+
+function todayString(root: string, now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Chicago",
+    timeZone: preferredTimezone(root),
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date());
+  }).format(now);
 }
 
-function readUtf8Limited(path: string, maxBytes: number): string {
-  const buffer = readFileSync(path);
-  if (buffer.length <= maxBytes) {
-    return buffer.toString("utf8");
-  }
-
-  const headBytes = Math.floor(maxBytes * 0.65);
-  const tailBytes = maxBytes - headBytes;
-  const head = buffer.subarray(0, headBytes).toString("utf8");
-  const tail = buffer.subarray(buffer.length - tailBytes).toString("utf8");
-  return `${head}\n\n[AI-EOS injector: file truncated after ${maxBytes} bytes; preserving tail below.]\n\n${tail}`;
+export function dailyMemoryPath(root: string, now = new Date()): string {
+  return path.join(root, "memory", `Memory ${todayString(root, now)}.md`);
 }
 
-function latestMemoryFiles(limit = 3): string[] {
-  const memoryDir = join(AI_EOS_ROOT, "memory");
-  if (!existsSync(memoryDir)) {
-    return [];
+function fileState(filePath: string): FileState {
+  try {
+    const stat = fs.statSync(filePath);
+    return { exists: true, size: stat.size, mtimeMs: stat.mtimeMs };
+  } catch {
+    return { exists: false, size: 0, mtimeMs: 0 };
   }
-
-  return readdirSync(memoryDir)
-    .filter((name) => /^Memory \d{4}-\d{2}-\d{2}\.md$/.test(name))
-    .map((name) => join(memoryDir, name))
-    .filter((path) => {
-      try {
-        return statSync(path).isFile();
-      } catch {
-        return false;
-      }
-    })
-    .sort()
-    .slice(-limit);
 }
 
-function buildAiEosContext(checkpointStatus?: string): string {
-  if (!existsSync(AI_EOS_ROOT)) {
-    return [
-      "# AI-EOS Startup Error",
-      `AI-EOS was not found at \`${AI_EOS_ROOT}\`.`,
-      "Tell Ed immediately before doing substantial work.",
-    ].join("\n");
-  }
+function fileChanged(before: FileState, after: FileState): boolean {
+  return before.exists !== after.exists || before.size !== after.size || before.mtimeMs !== after.mtimeMs;
+}
 
-  const sections: string[] = [
-    "# AI-EOS Loaded Context",
-    "AI-EOS is the canonical engineering knowledge system. Treat the Obsidian vault as the long-term source of truth.",
-    "Use `AI/MEMORY_SYSTEM.md` routing rules for documentation and memory updates. Do not invent another memory system or duplicate documentation.",
-    "Before architectural recommendations, inspect the actual repository. For substantial work, also read task-relevant project notes, decisions, lessons, and dated memory entries beyond the injected context when needed.",
-    "When a turn accomplishes or learns something significant, call `ai_eos_memory_checkpoint` before finalizing. Use it instead of ad hoc memory edits for normal dated-memory checkpoints.",
+function sessionKey(ctx: { sessionManager?: { getSessionFile?: () => string | undefined }; cwd?: string }): string {
+  try {
+    return String(ctx.sessionManager?.getSessionFile?.() || ctx.cwd || "session");
+  } catch {
+    return String(ctx.cwd || "session");
+  }
+}
+
+export function isLikelyMemoryWorthy(text: string): boolean {
+  const lower = text.toLowerCase();
+  return /\b(implement|implemented|build|built|fix|fixed|diagnose|diagnosed|debug|troubleshoot|resolved|corrected|configured|deployed|migrated|backup|restore|postgres|postgresql|pg_dump|pg_restore|database|rls|bypassrls|nginx|proxy|server|service|cron|systemd|security|client|retire01|rpg|fincon|lesson|learned|root cause)\b/.test(
+    lower,
+  );
+}
+
+function isMemoryWorthyTool(toolName: string): boolean {
+  return ["edit", "write", "bash", "obsidian_write", "obsidian_append"].includes(toolName);
+}
+
+function toolInputText(input: unknown): string {
+  try {
+    return JSON.stringify(input ?? {});
+  } catch {
+    return "";
+  }
+}
+
+function referencesAiEosMemory(inputText: string, root: string): boolean {
+  return inputText.includes(path.join(root, "memory")) || inputText.includes(".ai-eos/memory") || inputText.includes("Memory ");
+}
+
+export function buildMemoryCheckpointInstructions(root: string, now = new Date()): string {
+  const dailyPath = dailyMemoryPath(root, now);
+  return [
+    "## Required AI-EOS memory checkpoint gate",
+    "Before the final answer on any turn involving troubleshooting, implementation, operational advice, infrastructure/configuration diagnosis, databases, backups, security, or client-service work, decide whether a durable memory checkpoint is required.",
+    "If the session learned, fixed, diagnosed, implemented, or decided anything significant, append a structured entry to the current AI-EOS dated memory note before the final answer.",
+    `Current dated memory note: ${dailyPath}`,
+    "Prefer the ai_eos_memory_checkpoint tool when available. Otherwise edit or append the Markdown file directly.",
+    "Include service/client, repo/branch when relevant, root cause or decision, corrected pattern, checks run or recommended, files changed if any, and follow-ups.",
+    "Never store credentials, API keys, passwords, private keys, auth cookies, or other secrets in AI-EOS.",
+  ].join("\n");
+}
+
+export function renderMemoryCheckpoint(input: MemoryCheckpointInput): string {
+  const lines = [
+    `## ${input.title.trim()}`,
+    "",
+    `- Tag: ${input.tag.trim() || "Personal"}`,
   ];
 
-  if (checkpointStatus) {
-    sections.push(`\n## AI-EOS checkpoint status\n\n${checkpointStatus}`);
+  if (input.client?.trim()) {
+    lines.push(`- Client: ${input.client.trim()}`);
   }
+  if (input.repo?.trim()) {
+    lines.push(`- Repo: ${input.repo.trim()}`);
+  }
+  if (input.branch?.trim()) {
+    lines.push(`- Branch: ${input.branch.trim()}`);
+  }
+
+  lines.push(
+    `- Task: ${input.task.trim()}`,
+    `- Decisions/context: ${input.context.trim()}`,
+    `- Files changed: ${input.filesChanged?.length ? input.filesChanged.join(", ") : "none"}`,
+    `- Checks run: ${input.checksRun?.length ? input.checksRun.join("; ") : "none"}`,
+    `- Commit/PR info: ${input.commitInfo?.trim() || "none"}`,
+    `- Open follow-ups: ${input.followUps?.length ? input.followUps.join("; ") : "none"}`,
+    "",
+  );
+
+  return lines.join("\n");
+}
+
+function appendMemoryCheckpoint(root: string, input: MemoryCheckpointInput, now = new Date()): string {
+  const dailyPath = dailyMemoryPath(root, now);
+  fs.mkdirSync(path.dirname(dailyPath), { recursive: true });
+  const checkpoint = renderMemoryCheckpoint(input);
+  const needsSeparator = fs.existsSync(dailyPath) && fs.statSync(dailyPath).size > 0;
+  fs.appendFileSync(dailyPath, `${needsSeparator ? "\n" : ""}${checkpoint}`, "utf8");
+  return dailyPath;
+}
+
+function buildAiEosContext(): { text: string; missing: string[]; root: string } {
+  const root = aiEosHome();
+  if (!fs.existsSync(root)) {
+    return {
+      root,
+      missing: [root],
+      text: [
+        "## AI-EOS unavailable",
+        `AI-EOS was expected at ${root}, but that path does not exist. Tell Ed immediately.`,
+      ].join("\n"),
+    };
+  }
+
+  const missing: string[] = [];
+  const sections: string[] = [];
 
   for (const relativePath of CORE_FILES) {
-    const path = join(AI_EOS_ROOT, relativePath);
-    if (!existsSync(path)) {
-      sections.push(`\n## Missing: ${relativePath}\nAI-EOS expected file is missing. Tell Ed if this matters for the task.`);
-      continue;
+    const rendered = section(root, relativePath);
+    sections.push(rendered.text);
+    if (rendered.missing) {
+      missing.push(relativePath);
     }
-    sections.push(`\n## ${relativePath}\n\n${readUtf8Limited(path, MAX_FILE_BYTES)}`);
   }
 
-  const memoryFiles = latestMemoryFiles(3);
+  const memoryFiles = recentMemoryFiles(root);
   if (memoryFiles.length === 0) {
-    sections.push("\n## Recent dated memory entries\n\nNo `memory/Memory YYYY-MM-DD.md` files found.");
+    missing.push("memory/Memory YYYY-MM-DD.md");
+    sections.push("### Recent dated memory\n[No dated memory files found.]");
   } else {
-    sections.push("\n## Recent dated memory entries");
-    for (const path of memoryFiles) {
-      const label = path.slice(AI_EOS_ROOT.length + 1);
-      sections.push(`\n### ${label}\n\n${readUtf8Limited(path, MAX_MEMORY_FILE_BYTES)}`);
+    for (const relativePath of memoryFiles) {
+      const rendered = section(root, relativePath);
+      sections.push(rendered.text);
+      if (rendered.missing) {
+        missing.push(relativePath);
+      }
     }
   }
 
-  return sections.join("\n");
-}
-
-function oneLine(value: unknown, fallback = "none"): string {
-  if (value === undefined || value === null || value === "") return fallback;
-  return String(value).replace(/\r?\n/g, " ").trim() || fallback;
-}
-
-function bulletList(values: unknown, fallback = "none"): string {
-  const items = Array.isArray(values) ? values : values ? [values] : [];
-  const cleaned = items.map((item) => String(item).replace(/\r?\n/g, " ").trim()).filter(Boolean);
-  if (cleaned.length === 0) return `- ${fallback}`;
-  return cleaned.map((item) => `- ${item}`).join("\n");
-}
-
-function rejectLikelySecret(params: Record<string, unknown>): string | undefined {
-  const payload = JSON.stringify(params);
-  if (SECRET_HINT.test(payload)) {
-    return "Checkpoint appears to contain secret-like text. Remove credentials/tokens/passwords before writing AI-EOS memory.";
-  }
-  return undefined;
-}
-
-function memoryFileForToday(): string {
-  return join(AI_EOS_ROOT, "memory", `Memory ${todayInChicago()}.md`);
-}
-
-function appendDatedMemoryEntry(params: Record<string, unknown>): { path: string; markdown: string } {
-  const secretReason = rejectLikelySecret(params);
-  if (secretReason) throw new Error(secretReason);
-
-  const tag = params.tag === "Work" ? "Work" : "Personal";
-  const heading = oneLine(params.heading || params.task || "AI-EOS checkpoint", "AI-EOS checkpoint");
-  const clientLine = tag === "Work" ? `\n- Client: ${oneLine(params.client, "Unknown")}` : "";
-  const markdown = [
-    "",
-    `## ${heading}`,
-    "",
-    `- Tag: ${tag}${clientLine}`,
-    `- Repo: ${oneLine(params.repo, "n/a")}`,
-    `- Branch: ${oneLine(params.branch, "n/a")}`,
-    `- Task: ${oneLine(params.task || heading)}`,
-    `- Decisions/context: ${oneLine(params.decisionsContext || params.summary)}`,
-    "- Files changed:",
-    bulletList(params.filesChanged),
-    "- Checks run:",
-    bulletList(params.checksRun),
-    `- Commit/PR info: ${oneLine(params.commitPrInfo)}`,
-    `- Open follow-ups: ${oneLine(params.openFollowups)}`,
-  ].join("\n");
-
-  const path = memoryFileForToday();
-  mkdirSync(dirname(path), { recursive: true });
-  appendFileSync(path, `${markdown}\n`, "utf8");
-  return { path, markdown };
-}
-
-function isAiEosMemoryPath(pathValue: unknown): boolean {
-  if (typeof pathValue !== "string") return false;
-  const path = resolve(pathValue.startsWith("@") ? pathValue.slice(1) : pathValue);
-  const memoryRoot = resolve(AI_EOS_ROOT, "memory");
-  return path.startsWith(memoryRoot) || path === resolve(AI_EOS_ROOT, "MEMORY.md");
-}
-
-function bashLooksMutating(command: unknown): boolean {
-  if (typeof command !== "string") return false;
-  return /(^|[;&|]\s*)(git\s+(commit|merge|rebase|cherry-pick|tag)|make\s+(install|deploy)|npm\s+publish|python\S*\s+.*(--write|--fix)|rm\s|mv\s|cp\s|mkdir\s|touch\s|chmod\s|chown\s)|(^|\s)(>|>>|tee\s)/.test(command);
-}
-
-function toolIndicatesMutation(event: any): boolean {
-  if (MUTATION_TOOLS.has(event.toolName)) return true;
-  if (event.toolName === "bash") return bashLooksMutating(event.input?.command);
-  return false;
-}
-
-export default function (pi) {
-  let currentRun = {
-    started: false,
-    prompt: "",
-    mutated: false,
-    checkpointed: false,
-    tools: new Set<string>(),
+  return {
+    root,
+    missing,
+    text: [
+      "## AI-EOS canonical context",
+      `Location: ${root}`,
+      "",
+      "AI-EOS is Ed's primary engineering context. Treat harness-local memory, chat history, and repository compatibility files as secondary caches.",
+      "Use AI/MEMORY_SYSTEM.md for memory routing. Do not create competing memory files. If documentation conflicts with verified repository or runtime evidence, identify the stale source and recommend updating AI-EOS.",
+      "",
+      ...sections,
+    ].join("\n\n"),
   };
-  let missedCheckpointCount = 0;
+}
 
-  const checkpointStatus = () => {
-    if (!currentRun.started) return "No active checkpoint obligation for this agent run.";
-    if (currentRun.checkpointed) return "This agent run has already recorded an AI-EOS checkpoint.";
-    if (currentRun.mutated) return "This agent run used mutation-capable tools. If the result is significant, call `ai_eos_memory_checkpoint` before finalizing.";
-    return "No mutation-capable tool has completed in this agent run yet. Still checkpoint if a significant fact was learned.";
-  };
-
+export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "ai_eos_memory_checkpoint",
     label: "AI-EOS Memory Checkpoint",
-    description: "Append a structured checkpoint to today's AI-EOS dated memory note after significant work or learning.",
-    promptSnippet: "Record significant accomplishments or learnings in AI-EOS dated memory",
+    description: "Append a structured checkpoint to today's AI-EOS dated memory note.",
+    promptSnippet: "Append a structured checkpoint to today's AI-EOS dated memory note",
     promptGuidelines: [
-      "Use ai_eos_memory_checkpoint before finalizing any significant task, durable learning, operational fix, architecture decision, or meaningful project change.",
-      "Do not put secrets, tokens, passwords, private keys, cookies, or credentials in ai_eos_memory_checkpoint input.",
+      "Use ai_eos_memory_checkpoint before the final answer when a turn learns, fixes, diagnoses, implements, or decides anything significant for AI-EOS continuity.",
+      "Use ai_eos_memory_checkpoint for operational, infrastructure, database, backup, security, deployment, or client-service lessons instead of waiting for session shutdown.",
+      "Never put credentials, API keys, passwords, private keys, auth cookies, or other secrets in ai_eos_memory_checkpoint fields.",
     ],
-    parameters: Type.Object({
-      heading: Type.String({ description: "Short heading for the dated memory entry" }),
-      tag: Type.String({ description: "Personal or Work" }),
-      client: Type.Optional(Type.String({ description: "Required for Work entries when known, e.g. Cisco, RETIRE01" })),
-      repo: Type.Optional(Type.String({ description: "Repository or n/a" })),
-      branch: Type.Optional(Type.String({ description: "Git branch or n/a" })),
-      task: Type.String({ description: "What was done or verified" }),
-      decisionsContext: Type.String({ description: "Important context, decisions, root cause, or rationale" }),
-      filesChanged: Type.Optional(Type.Array(Type.String())),
-      checksRun: Type.Optional(Type.Array(Type.String())),
-      commitPrInfo: Type.Optional(Type.String()),
-      openFollowups: Type.Optional(Type.String()),
-    }),
-    async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
-      const result = appendDatedMemoryEntry(params);
-      currentRun.checkpointed = true;
-      currentRun.tools.add("ai_eos_memory_checkpoint");
-      pi.appendEntry(CHECKPOINT_CUSTOM_TYPE, {
-        path: result.path,
-        heading: params.heading,
-        tag: params.tag,
-        timestamp: Date.now(),
-      });
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["title", "tag", "task", "context"],
+      properties: {
+        title: { type: "string", description: "Markdown heading for the memory entry, without leading ##." },
+        tag: { type: "string", description: "Usually Personal or Work." },
+        client: { type: "string", description: "Client identifier such as RETIRE01 when relevant." },
+        repo: { type: "string", description: "Repository or system path when relevant." },
+        branch: { type: "string", description: "Git branch when relevant." },
+        task: { type: "string", description: "Brief task summary." },
+        context: { type: "string", description: "Root cause, decision, corrected pattern, or durable lesson." },
+        filesChanged: { type: "array", items: { type: "string" } },
+        checksRun: { type: "array", items: { type: "string" } },
+        commitInfo: { type: "string" },
+        followUps: { type: "array", items: { type: "string" } },
+      },
+    },
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const root = aiEosHome();
+      const dailyPath = appendMemoryCheckpoint(root, params as MemoryCheckpointInput);
+      const state = runStateBySession.get(sessionKey(ctx));
+      if (state) {
+        state.usedCheckpointTool = true;
+      }
+      ctx.ui.setStatus(MEMORY_STATUS_KEY, "AI-EOS: checkpoint written");
       return {
-        content: [{ type: "text", text: `AI-EOS memory checkpoint appended to ${result.path}` }],
-        details: { path: result.path, heading: params.heading, tag: params.tag },
+        content: [{ type: "text", text: `AI-EOS memory checkpoint appended to ${dailyPath}` }],
+        details: { dailyPath },
       };
     },
   });
 
-  pi.registerCommand("ai-eos-checkpoint-status", {
-    description: "Show AI-EOS checkpoint state for the current agent run",
-    handler: async (_args, ctx) => {
-      const text = checkpointStatus();
-      if (ctx.hasUI) ctx.ui.notify(text, currentRun.mutated && !currentRun.checkpointed ? "warning" : "info");
-      else console.log(text);
-    },
+  pi.on("session_start", async (_event, ctx) => {
+    const context = buildAiEosContext();
+    if (context.missing.length > 0) {
+      ctx.ui.notify(
+        `AI-EOS context incomplete: ${context.missing.slice(0, 3).join(", ")}${context.missing.length > 3 ? "..." : ""}`,
+        "warning",
+      );
+    }
+    ctx.ui.setStatus(MEMORY_STATUS_KEY, context.missing.length > 0 ? "AI-EOS: incomplete" : "AI-EOS: loaded");
   });
 
-  pi.on("before_agent_start", async (event) => {
-    currentRun = {
-      started: true,
+  pi.on("before_agent_start", async (event, ctx) => {
+    const context = buildAiEosContext();
+    const dailyPath = dailyMemoryPath(context.root);
+    runStateBySession.set(sessionKey(ctx), {
+      dailyPath,
+      before: fileState(dailyPath),
+      needsCheckpoint: isLikelyMemoryWorthy(event.prompt || ""),
+      usedCheckpointTool: false,
       prompt: event.prompt || "",
-      mutated: false,
-      checkpointed: false,
-      tools: new Set<string>(),
-    };
+    });
+
     return {
-      systemPrompt: `${event.systemPrompt}\n\n${buildAiEosContext(checkpointStatus())}`,
+      systemPrompt: `${event.systemPrompt}\n\n${context.text}\n\n${buildMemoryCheckpointInstructions(context.root)}`,
     };
   });
 
-  pi.on("tool_result", async (event) => {
-    if (event.isError) return;
-    currentRun.tools.add(event.toolName);
+  pi.on("tool_call", async (event, ctx) => {
+    const state = runStateBySession.get(sessionKey(ctx));
+    if (!state) {
+      return undefined;
+    }
+
     if (event.toolName === "ai_eos_memory_checkpoint") {
-      currentRun.checkpointed = true;
-      return;
+      state.usedCheckpointTool = true;
+      state.needsCheckpoint = false;
+      return undefined;
     }
-    if ((event.toolName === "edit" || event.toolName === "write") && isAiEosMemoryPath(event.input?.path)) {
-      currentRun.checkpointed = true;
-      return;
+
+    const root = aiEosHome();
+    const inputText = toolInputText(event.input);
+    if (referencesAiEosMemory(inputText, root)) {
+      state.usedCheckpointTool = true;
+      return undefined;
     }
-    if (toolIndicatesMutation(event)) {
-      currentRun.mutated = true;
+
+    if (isMemoryWorthyTool(event.toolName) && (event.toolName !== "bash" || isLikelyMemoryWorthy(inputText))) {
+      state.needsCheckpoint = true;
     }
+
+    return undefined;
   });
 
   pi.on("agent_settled", async (_event, ctx) => {
-    if (!currentRun.started || !currentRun.mutated || currentRun.checkpointed) return;
-    missedCheckpointCount += 1;
-    const message = "AI-EOS checkpoint missing: mutation-capable work completed without `ai_eos_memory_checkpoint`. If this work was significant, record it before moving on.";
-    pi.appendEntry(CHECKPOINT_WARNING_CUSTOM_TYPE, {
-      message,
-      prompt: currentRun.prompt,
-      tools: [...currentRun.tools].sort(),
-      missedCheckpointCount,
-      timestamp: Date.now(),
-    });
-    if (ctx.hasUI) ctx.ui.notify(message, "warning");
-  });
+    const key = sessionKey(ctx);
+    const state = runStateBySession.get(key);
+    if (!state) {
+      return;
+    }
 
-  pi.on("session_shutdown", async (_event, ctx) => {
-    if (!currentRun.started || !currentRun.mutated || currentRun.checkpointed) return;
-    const message = "AI-EOS session ended with mutation-capable work and no recorded checkpoint.";
-    pi.appendEntry(CHECKPOINT_WARNING_CUSTOM_TYPE, {
-      message,
-      prompt: currentRun.prompt,
-      tools: [...currentRun.tools].sort(),
-      timestamp: Date.now(),
-    });
-    if (ctx.hasUI) ctx.ui.notify(message, "warning");
+    const after = fileState(state.dailyPath);
+    const checkpointWritten = state.usedCheckpointTool || fileChanged(state.before, after);
+    if (state.needsCheckpoint && !checkpointWritten) {
+      ctx.ui.setStatus(MEMORY_STATUS_KEY, "AI-EOS: checkpoint needed");
+      ctx.ui.notify(
+        `AI-EOS memory checkpoint likely needed. Append to ${state.dailyPath} before considering this work complete.`,
+        "warning",
+      );
+    } else if (checkpointWritten) {
+      ctx.ui.setStatus(MEMORY_STATUS_KEY, "AI-EOS: checkpoint written");
+    } else {
+      ctx.ui.setStatus(MEMORY_STATUS_KEY, "AI-EOS: loaded");
+    }
+
+    runStateBySession.delete(key);
   });
 }

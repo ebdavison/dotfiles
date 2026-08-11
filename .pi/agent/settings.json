@@ -2,17 +2,16 @@
   "lastChangelogVersion": "0.84.1",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.5",
-  "defaultThinkingLevel": "medium",
-  "theme": "gruvbox-dark",
+  "defaultThinkingLevel": "high",
+  "theme": "dark",
   "packages": [
+    "git:github.com/obra/superpowers",
+    "https://github.com/pbakaus/impeccable",
+    "npm:pi-obsidian",
     "npm:pi-subagents",
-    "npm:@gaodes/pi-graphify",
-    "npm:pi-impeccable",
-    "npm:pi-superpowers",
-    "npm:@mammothb/pi-office",
-    "npm:pi-web-access",
-    "npm:pi-mcp-adapter",
-    "npm:@slix/obsidian-notes",
-    "npm:@firstpick/pi-themes-bundle"
+    "git:github.com/badlogic/pi-telegram"
+  ],
+  "extensions": [
+    "/home/edavison/.pi/agent/extensions/ai-eos-context.ts"
   ]
 }

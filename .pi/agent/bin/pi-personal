@@ -1,6 +1,60 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-exec "$HOME/.pi/agent/bin/pi-env" \
-  --agent-dir "$HOME/.pi-personal" \
-  -- "$@"
+launcher_name="$(basename "$0")"
+case "$launcher_name" in
+  pi-personal)
+    env_name="personal"
+    ;;
+  pi-work)
+    env_name="work"
+    ;;
+  *)
+    echo "Expected pi-personal or pi-work" >&2
+    exit 2
+    ;;
+esac
+
+config_dir="$HOME/.pi-${env_name}"
+shared_root="/opt/Data/Personal/NextCloud/Notes/AI_Setup"
+client_arg=""
+remaining_args=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -c|--client)
+      if [[ $# -lt 2 ]]; then
+        echo "$1 requires a client value" >&2
+        exit 2
+      fi
+      client_arg="$2"
+      shift 2
+      ;;
+    *)
+      remaining_args+=("$1")
+      shift
+      ;;
+  esac
+done
+set -- "${remaining_args[@]}"
+
+auto_link() {
+  ln -sfn "$1" "$2"
+}
+
+mkdir -p "$config_dir"
+auto_link "$shared_root/AGENTS.md" "$config_dir/AGENTS.md"
+auto_link "$shared_root/SOUL.md" "$config_dir/SOUL.md"
+auto_link "$shared_root/USER.md" "$config_dir/USER.md"
+auto_link "$shared_root/MEMORY.md" "$config_dir/MEMORY.md"
+auto_link "$shared_root/memory" "$config_dir/memory"
+auto_link "$HOME/.pi/agent/settings.json" "$config_dir/settings.json"
+
+export PI_CODING_AGENT_DIR="$config_dir"
+export PI_ENV="$env_name"
+if [[ "$env_name" == "work" ]]; then
+  export PI_CLIENT="${client_arg:-${PI_CLIENT:-Cisco}}"
+else
+  unset PI_CLIENT
+fi
+exec pi "$@"
