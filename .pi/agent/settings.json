@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.84.1",
+  "lastChangelogVersion": "0.84.2",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.5",
   "defaultThinkingLevel": "high",
@@ -9,9 +9,14 @@
     "https://github.com/pbakaus/impeccable",
     "npm:pi-obsidian",
     "npm:pi-subagents",
-    "git:github.com/badlogic/pi-telegram"
+    "git:github.com/badlogic/pi-telegram",
+    "npm:pi-puppeteer"
   ],
   "extensions": [
-    "/home/edavison/.pi/agent/extensions/ai-eos-context.ts"
+    "/home/edavison/.pi/agent/extensions/ai-eos-context.ts",
+    "/home/edavison/.pi/agent/extensions/copy-all/index.ts",
+    "/home/edavison/.pi/agent/extensions/weekly-git-summary/index.ts",
+    "/home/edavison/.pi/agent/extensions/cold-email/index.ts",
+    "/home/edavison/.pi/agent/extensions/web-read/index.ts"
   ]
 }
