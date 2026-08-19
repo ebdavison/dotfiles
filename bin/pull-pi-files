@@ -12,6 +12,10 @@ MANAGED_PI_FILES=(
   ".pi/agent/tests/test-ai-eos-checkpointing.mjs"
 )
 
+MANAGED_PI_DIRS=(
+  ".pi/agent/skills"
+)
+
 repo_root() {
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -39,6 +43,24 @@ copy_managed_file() {
   echo "pulled $relative_path"
 }
 
+copy_managed_dir() {
+  local relative_path="$1"
+  local home_root="$2"
+  local repo="$3"
+  local source="$home_root/$relative_path"
+  local destination="$repo/$relative_path"
+
+  if [[ ! -d "$source" ]]; then
+    echo "WARN: missing source directory $source" >&2
+    return 0
+  fi
+
+  rm -rf "$destination"
+  mkdir -p "$(dirname "$destination")"
+  cp -a "$source" "$destination"
+  echo "pulled $relative_path/"
+}
+
 main() {
   local home_root repo relative_path
   home_root="$(source_home)"
@@ -46,6 +68,10 @@ main() {
 
   for relative_path in "${MANAGED_PI_FILES[@]}"; do
     copy_managed_file "$relative_path" "$home_root" "$repo"
+  done
+
+  for relative_path in "${MANAGED_PI_DIRS[@]}"; do
+    copy_managed_dir "$relative_path" "$home_root" "$repo"
   done
 
   echo "Pi file pull complete. Review git diff before committing."

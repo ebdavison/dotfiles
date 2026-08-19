@@ -12,11 +12,16 @@ MANAGED_PI_FILES=(
   ".pi/agent/tests/test-ai-eos-checkpointing.mjs"
 )
 
+MANAGED_PI_DIRS=(
+  ".pi/agent/skills"
+)
+
 SHARED_PROFILE_LINKS=(
   "AGENTS.md:.pi/agent/AGENTS.md"
   "extensions:.pi/agent/extensions"
   "settings.json:.pi/agent/settings.json"
   "npm:.pi/agent/npm"
+  "git:.pi/agent/git"
   "skills:.pi/agent/skills"
   "models-store.json:.pi/agent/models-store.json"
 )
@@ -27,6 +32,9 @@ AI_EOS_PROFILE_LINKS=(
   "MEMORY.md:.ai-eos/MEMORY.md"
   "memory:.ai-eos/memory"
 )
+
+backup_stamp="${DOTFILES_DEPLOY_BACKUP_STAMP:-$(date +%Y%m%d-%H%M%S)}"
+backup_root=""
 
 repo_root() {
   local script_dir
@@ -79,9 +87,110 @@ copy_managed_file() {
   echo "deployed $relative_path"
 }
 
+copy_managed_dir() {
+  local relative_path="$1"
+  local repo="$2"
+  local source="$repo/$relative_path"
+  local destination="$HOME/$relative_path"
+
+  if [[ ! -d "$source" ]]; then
+    echo "WARN: missing repo directory $source" >&2
+    return 0
+  fi
+
+  rm -rf "$destination"
+  mkdir -p "$(dirname "$destination")"
+  cp -a "$source" "$destination"
+  echo "deployed $relative_path/"
+}
+
 ensure_dir() {
   local path="$1"
   mkdir -p "$path"
+}
+
+relative_home_path() {
+  local path="$1"
+  case "$path" in
+    "$HOME"/*)
+      printf '%s\n' "${path#"$HOME/"}"
+      ;;
+    *)
+      printf '%s\n' "${path#/}"
+      ;;
+  esac
+}
+
+backup_existing_path() {
+  local path="$1"
+  local relative_path
+  relative_path="$(relative_home_path "$path")"
+  backup_root="$HOME/.dotfiles-deploy-backup/$backup_stamp"
+  local backup_path="$backup_root/$relative_path"
+  mkdir -p "$(dirname "$backup_path")"
+  cp -a "$path" "$backup_path"
+  echo "backed up $path to $backup_path"
+}
+
+show_link_conflict() {
+  local link="$1"
+  local target="$2"
+
+  echo "Current path:" >&2
+  ls -ld "$link" >&2 || true
+  if [[ -d "$link" && ! -L "$link" ]]; then
+    find "$link" -mindepth 1 -maxdepth 2 -print 2>/dev/null | head -20 >&2 || true
+  elif [[ -f "$link" && -f "$target" ]]; then
+    diff -u --label "$link" --label "$target" "$link" "$target" || true
+  fi
+  echo "Desired symlink: $link -> $target" >&2
+  if [[ -e "$target" || -L "$target" ]]; then
+    ls -ld "$target" >&2 || true
+  fi
+}
+
+replace_with_link() {
+  local link="$1"
+  local target="$2"
+  backup_existing_path "$link"
+  rm -rf "$link"
+  ln -s "$target" "$link"
+  echo "linked $link -> $target"
+}
+
+prompt_link_conflict() {
+  local link="$1"
+  local target="$2"
+  local answer
+
+  while true; do
+    printf 'Conflict: %s is not the desired symlink. [d]iff, [y]es replace, [n]o skip, [q]uit: ' "$link" >&2
+    if ! IFS= read -r answer; then
+      echo "No answer received; skipping $link" >&2
+      return 0
+    fi
+
+    case "$answer" in
+      d|D|diff|DIFF)
+        show_link_conflict "$link" "$target"
+        ;;
+      y|Y|yes|YES)
+        replace_with_link "$link" "$target"
+        return 0
+        ;;
+      n|N|no|NO|"")
+        echo "skipped $link"
+        return 0
+        ;;
+      q|Q|quit|QUIT)
+        echo "Aborted by user" >&2
+        exit 130
+        ;;
+      *)
+        echo "Please answer d, y, n, or q." >&2
+        ;;
+    esac
+  done
 }
 
 ensure_link() {
@@ -94,13 +203,24 @@ ensure_link() {
     if [[ "$current" == "$target" ]]; then
       return 0
     fi
-    rm "$link"
-  elif [[ -e "$link" ]]; then
-    echo "WARN: refusing to replace non-symlink profile path $link" >&2
+    prompt_link_conflict "$link" "$target"
+    return 0
+  fi
+
+  if [[ -e "$link" ]]; then
+    prompt_link_conflict "$link" "$target"
     return 0
   fi
 
   ln -s "$target" "$link"
+  echo "linked $link -> $target"
+}
+
+ensure_shared_profile_targets() {
+  ensure_dir "$HOME/.pi/agent/extensions"
+  ensure_dir "$HOME/.pi/agent/npm"
+  ensure_dir "$HOME/.pi/agent/git"
+  ensure_dir "$HOME/.pi/agent/skills"
 }
 
 create_profile() {
@@ -140,6 +260,12 @@ main() {
   for relative_path in "${MANAGED_PI_FILES[@]}"; do
     copy_managed_file "$relative_path" "$repo"
   done
+
+  for relative_path in "${MANAGED_PI_DIRS[@]}"; do
+    copy_managed_dir "$relative_path" "$repo"
+  done
+
+  ensure_shared_profile_targets
 
   create_profile "$HOME/.pi-personal"
   create_profile "$HOME/.pi-work"

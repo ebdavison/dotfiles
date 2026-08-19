@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+profiles=(personal work)
+
+usage() {
+  cat <<'USAGE'
+Usage: install-pi-packages [--profile personal|work|all]
+
+Reconcile Pi packages/extensions for pi-personal and/or pi-work using each
+profile's settings.json. This installs missing packages and reconciles pinned git
+refs via: pi update --extensions
+USAGE
+}
+
+validate_home() {
+  if [[ -z "${HOME:-}" || "$HOME" == "/" ]]; then
+    echo "Refusing to run with unsafe HOME: ${HOME:-<empty>}" >&2
+    exit 2
+  fi
+}
+
+select_profiles() {
+  local selected="all"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --profile)
+        if [[ $# -lt 2 ]]; then
+          echo "--profile requires personal, work, or all" >&2
+          exit 2
+        fi
+        selected="$2"
+        shift 2
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        echo "Unknown argument: $1" >&2
+        usage >&2
+        exit 2
+        ;;
+    esac
+  done
+
+  case "$selected" in
+    all)
+      profiles=(personal work)
+      ;;
+    personal|work)
+      profiles=("$selected")
+      ;;
+    *)
+      echo "Invalid profile: $selected" >&2
+      exit 2
+      ;;
+  esac
+}
+
+profile_dir() {
+  local profile="$1"
+  printf '%s\n' "$HOME/.pi-$profile"
+}
+
+reconcile_profile() {
+  local profile="$1"
+  local dir
+  dir="$(profile_dir "$profile")"
+
+  if [[ ! -f "$dir/settings.json" ]]; then
+    echo "WARN: missing $dir/settings.json; skipping $profile" >&2
+    return 0
+  fi
+
+  mkdir -p "$dir"
+  echo "Reconciling Pi packages for $profile ($dir)"
+  PI_CODING_AGENT_DIR="$dir" PI_ENV="$profile" pi update --extensions
+}
+
+main() {
+  validate_home
+  select_profiles "$@"
+
+  local profile
+  for profile in "${profiles[@]}"; do
+    reconcile_profile "$profile"
+  done
+
+  echo "Pi package reconciliation complete. Restart Pi or run /reload in existing sessions."
+}
+
+main "$@"
