@@ -30,6 +30,11 @@ assert_file_missing() {
   [[ ! -e "$file" ]] || fail "expected path to be missing: $file"
 }
 
+assert_directory_exists() {
+  local directory="$1"
+  [[ -d "$directory" ]] || fail "expected directory to exist: $directory"
+}
+
 assert_symlink_target() {
   local link="$1"
   local expected="$2"
@@ -61,7 +66,10 @@ seed_source_pi_files() {
     "$home/.pi/agent/lib" \
     "$home/.pi/agent/tests" \
     "$home/.pi/agent/sessions" \
-    "$home/.pi/agent/npm"
+    "$home/.pi/agent/npm" \
+    "$home/.pi/agent/git" \
+    "$home/.pi/agent/skills/graphify" \
+    "$home/.pi/agent/skills/commit-push"
   printf 'agents\n' > "$home/.pi/agent/AGENTS.md"
   printf '{"packages":[]}\n' > "$home/.pi/agent/settings.json"
   printf 'extension\n' > "$home/.pi/agent/extensions/ai-eos-context.ts"
@@ -73,6 +81,8 @@ seed_source_pi_files() {
   printf 'secret\n' > "$home/.pi/agent/auth.json"
   printf 'session\n' > "$home/.pi/agent/sessions/session.jsonl"
   printf 'cache\n' > "$home/.pi/agent/npm/cache-file"
+  printf 'graphify skill\n' > "$home/.pi/agent/skills/graphify/SKILL.md"
+  printf 'commit push skill\n' > "$home/.pi/agent/skills/commit-push/SKILL.md"
 }
 
 test_pull_copies_only_curated_pi_files() {
@@ -88,15 +98,18 @@ test_pull_copies_only_curated_pi_files() {
   assert_file_content "$TEST_ROOT/repo/.pi/agent/bin/pi-env" $'#!/usr/bin/env bash\npi-env'
   assert_file_content "$TEST_ROOT/repo/.pi/agent/lib/skip-startup-fd.mjs" "preload"
   assert_file_content "$TEST_ROOT/repo/.pi/agent/tests/test-ai-eos-checkpointing.mjs" "test"
+  assert_file_content "$TEST_ROOT/repo/.pi/agent/skills/graphify/SKILL.md" "graphify skill"
+  assert_file_content "$TEST_ROOT/repo/.pi/agent/skills/commit-push/SKILL.md" "commit push skill"
   assert_file_missing "$TEST_ROOT/repo/.pi/agent/auth.json"
   assert_file_missing "$TEST_ROOT/repo/.pi/agent/sessions/session.jsonl"
   assert_file_missing "$TEST_ROOT/repo/.pi/agent/npm/cache-file"
+  assert_file_missing "$TEST_ROOT/repo/.pi/agent/git"
 }
 
 test_deploy_copies_curated_files_and_creates_profile_symlinks() {
   setup_test_repo
   trap cleanup_test_repo RETURN
-  mkdir -p "$TEST_ROOT/repo/.pi/agent/extensions" "$TEST_ROOT/repo/.pi/agent/bin" "$TEST_ROOT/repo/.pi/agent/lib" "$TEST_ROOT/repo/.pi/agent/tests"
+  mkdir -p "$TEST_ROOT/repo/.pi/agent/extensions" "$TEST_ROOT/repo/.pi/agent/bin" "$TEST_ROOT/repo/.pi/agent/lib" "$TEST_ROOT/repo/.pi/agent/tests" "$TEST_ROOT/repo/.pi/agent/skills/graphify"
   printf 'agents\n' > "$TEST_ROOT/repo/.pi/agent/AGENTS.md"
   printf '{"packages":[]}\n' > "$TEST_ROOT/repo/.pi/agent/settings.json"
   printf 'extension\n' > "$TEST_ROOT/repo/.pi/agent/extensions/ai-eos-context.ts"
@@ -105,6 +118,7 @@ test_deploy_copies_curated_files_and_creates_profile_symlinks() {
   printf '#!/usr/bin/env bash\npi-work\n' > "$TEST_ROOT/repo/.pi/agent/bin/pi-work"
   printf 'preload\n' > "$TEST_ROOT/repo/.pi/agent/lib/skip-startup-fd.mjs"
   printf 'test\n' > "$TEST_ROOT/repo/.pi/agent/tests/test-ai-eos-checkpointing.mjs"
+  printf 'graphify skill\n' > "$TEST_ROOT/repo/.pi/agent/skills/graphify/SKILL.md"
   mkdir -p "$TEST_ROOT/deploy-home/.ai-eos/memory"
   printf 'orientation\n' > "$TEST_ROOT/deploy-home/.ai-eos/AGENT_ORIENTATION_PROMPT.md"
   printf 'user\n' > "$TEST_ROOT/deploy-home/.ai-eos/USER.md"
@@ -115,9 +129,14 @@ test_deploy_copies_curated_files_and_creates_profile_symlinks() {
 
   assert_file_content "$TEST_ROOT/deploy-home/.pi/agent/extensions/ai-eos-context.ts" "extension"
   assert_file_content "$TEST_ROOT/deploy-home/.pi/agent/bin/pi-work" $'#!/usr/bin/env bash\npi-work'
+  assert_file_content "$TEST_ROOT/deploy-home/.pi/agent/skills/graphify/SKILL.md" "graphify skill"
   [[ -x "$TEST_ROOT/deploy-home/.pi/agent/bin/pi-work" ]] || fail "expected pi-work to be executable"
   assert_symlink_target "$TEST_ROOT/deploy-home/.pi-personal/extensions" "$TEST_ROOT/deploy-home/.pi/agent/extensions"
   assert_symlink_target "$TEST_ROOT/deploy-home/.pi-work/extensions" "$TEST_ROOT/deploy-home/.pi/agent/extensions"
+  assert_symlink_target "$TEST_ROOT/deploy-home/.pi-personal/npm" "$TEST_ROOT/deploy-home/.pi/agent/npm"
+  assert_symlink_target "$TEST_ROOT/deploy-home/.pi-work/npm" "$TEST_ROOT/deploy-home/.pi/agent/npm"
+  assert_symlink_target "$TEST_ROOT/deploy-home/.pi-personal/git" "$TEST_ROOT/deploy-home/.pi/agent/git"
+  assert_symlink_target "$TEST_ROOT/deploy-home/.pi-work/git" "$TEST_ROOT/deploy-home/.pi/agent/git"
   assert_symlink_target "$TEST_ROOT/deploy-home/.pi-work/USER.md" "$TEST_ROOT/deploy-home/.ai-eos/USER.md"
   assert_symlink_target "$TEST_ROOT/deploy-home/.pi-personal/MEMORY.md" "$TEST_ROOT/deploy-home/.ai-eos/MEMORY.md"
   [[ -d "$TEST_ROOT/deploy-home/.pi-work/sessions" ]] || fail "expected profile-local sessions directory"
@@ -136,6 +155,55 @@ test_deploy_refuses_missing_ai_eos_by_default() {
   grep -q 'AI-EOS orientation file is missing' "$TEST_ROOT/output.txt" || fail "missing AI-EOS failure message"
 }
 
+seed_minimal_repo_and_ai_eos() {
+  mkdir -p \
+    "$TEST_ROOT/repo/.pi/agent/extensions" \
+    "$TEST_ROOT/repo/.pi/agent/bin" \
+    "$TEST_ROOT/repo/.pi/agent/lib" \
+    "$TEST_ROOT/repo/.pi/agent/tests" \
+    "$TEST_ROOT/deploy-home/.ai-eos/memory"
+  printf 'agents\n' > "$TEST_ROOT/repo/.pi/agent/AGENTS.md"
+  printf '{"packages":[]}\n' > "$TEST_ROOT/repo/.pi/agent/settings.json"
+  printf 'extension\n' > "$TEST_ROOT/repo/.pi/agent/extensions/ai-eos-context.ts"
+  printf '#!/usr/bin/env bash\npi-env\n' > "$TEST_ROOT/repo/.pi/agent/bin/pi-env"
+  printf '#!/usr/bin/env bash\npi-personal\n' > "$TEST_ROOT/repo/.pi/agent/bin/pi-personal"
+  printf '#!/usr/bin/env bash\npi-work\n' > "$TEST_ROOT/repo/.pi/agent/bin/pi-work"
+  printf 'preload\n' > "$TEST_ROOT/repo/.pi/agent/lib/skip-startup-fd.mjs"
+  printf 'test\n' > "$TEST_ROOT/repo/.pi/agent/tests/test-ai-eos-checkpointing.mjs"
+  printf 'orientation\n' > "$TEST_ROOT/deploy-home/.ai-eos/AGENT_ORIENTATION_PROMPT.md"
+  printf 'user\n' > "$TEST_ROOT/deploy-home/.ai-eos/USER.md"
+  printf 'soul\n' > "$TEST_ROOT/deploy-home/.ai-eos/SOUL.md"
+  printf 'memory\n' > "$TEST_ROOT/deploy-home/.ai-eos/MEMORY.md"
+}
+
+test_deploy_prompts_and_backs_up_before_replacing_profile_directory_conflict() {
+  setup_test_repo
+  trap cleanup_test_repo RETURN
+  seed_minimal_repo_and_ai_eos
+  mkdir -p "$TEST_ROOT/deploy-home/.pi-personal/npm"
+  printf 'old package state\n' > "$TEST_ROOT/deploy-home/.pi-personal/npm/local.txt"
+
+  printf 'y\n' | (cd /tmp && DOTFILES_DEPLOY_BACKUP_STAMP=teststamp HOME="$TEST_ROOT/deploy-home" "$TEST_ROOT/repo/bin/deploy-pi-files") > "$TEST_ROOT/output.txt" 2>&1
+
+  assert_symlink_target "$TEST_ROOT/deploy-home/.pi-personal/npm" "$TEST_ROOT/deploy-home/.pi/agent/npm"
+  assert_file_content "$TEST_ROOT/deploy-home/.dotfiles-deploy-backup/teststamp/.pi-personal/npm/local.txt" "old package state"
+  grep -q 'Conflict:' "$TEST_ROOT/output.txt" || fail "expected conflict prompt"
+}
+
+test_deploy_can_skip_profile_directory_conflict() {
+  setup_test_repo
+  trap cleanup_test_repo RETURN
+  seed_minimal_repo_and_ai_eos
+  mkdir -p "$TEST_ROOT/deploy-home/.pi-work/git"
+  printf 'old git state\n' > "$TEST_ROOT/deploy-home/.pi-work/git/local.txt"
+
+  printf 'n\n' | (cd /tmp && HOME="$TEST_ROOT/deploy-home" "$TEST_ROOT/repo/bin/deploy-pi-files") > "$TEST_ROOT/output.txt" 2>&1
+
+  assert_directory_exists "$TEST_ROOT/deploy-home/.pi-work/git"
+  [[ ! -L "$TEST_ROOT/deploy-home/.pi-work/git" ]] || fail "expected skipped git directory to remain non-symlink"
+  assert_file_content "$TEST_ROOT/deploy-home/.pi-work/git/local.txt" "old git state"
+}
+
 run_test() {
   local name="$1"
   echo "Running $name"
@@ -145,5 +213,7 @@ run_test() {
 run_test test_pull_copies_only_curated_pi_files
 run_test test_deploy_copies_curated_files_and_creates_profile_symlinks
 run_test test_deploy_refuses_missing_ai_eos_by_default
+run_test test_deploy_prompts_and_backs_up_before_replacing_profile_directory_conflict
+run_test test_deploy_can_skip_profile_directory_conflict
 
 echo "All pi files sync tests passed"
