@@ -137,7 +137,7 @@ bindsym Control+$mod+Down  workspace prev
 bindsym Control+$mod+Up    workspace next
 
 # layout
-bindsym $mod+Escape exec "i3-instant-layout --list | rofi -dmenu -i | i3-isntant-layout -"
+bindsym $mod+Escape exec "i3-instant-layout --list | rofi -dmenu -i | i3-instant-layout -"
 
 # Define names for default workspaces for which we configure key bindings later on.
 # We use variables to avoid repeating the names in multiple places.

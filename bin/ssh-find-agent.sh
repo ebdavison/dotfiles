@@ -58,6 +58,7 @@ sfa_set_path() {
       else
         sfa_path=("/tmp")
       fi
+      [[ -d "$HOME/.ssh/agent" ]] && sfa_path+=("$HOME/.ssh/agent")
     fi
   fi
 }
@@ -79,6 +80,7 @@ sfa_find_all_agent_sockets() {
     find "${sfa_path[@]}" -maxdepth 2 -type s -name S.gpg-agent.ssh 2>/dev/null | grep '/gpg-.*/S.gpg-agent.ssh'
     find "${sfa_path[@]}" -maxdepth 2 -type s -name ssh 2>/dev/null | grep '/keyring-.*/ssh$'
     find "${sfa_path[@]}" -maxdepth 2 -type s -regex '.*/ssh-.*/agent..*$' 2>/dev/null
+    find "${sfa_path[@]}" -maxdepth 2 -type s -name 's.*.agent.*' 2>/dev/null
   )
   sfa_debug "$_ssh_agent_sockets"
 }
