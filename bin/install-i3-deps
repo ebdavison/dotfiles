@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Install software referenced by ~/.config/i3/config on Fedora.
+# This intentionally does not download proprietary/custom GUI apps unattended.
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DRY_RUN=0
+INSTALL_RUST_TOOLS=1
+INSTALL_CUSTOM_HELPERS=1
+
+DNF_PACKAGES=(
+  rofi
+  lxpolkit
+  picom
+  vorta
+  xsecurelock
+  blueman
+  flameshot
+  cargo
+)
+
+CARGO_CRATES=(
+  i3-instant-layout
+  rofi-rbw
+)
+
+usage() {
+  cat <<'USAGE'
+Usage: install-i3-deps [--dry-run] [--no-rust-tools] [--no-custom-helpers]
+
+Installs Fedora packages used by ~/.config/i3/config and optionally installs
+Rust/cargo-based helpers plus repo-local custom helper scripts.
+
+Fedora packages:
+  rofi lxpolkit picom vorta xsecurelock blueman flameshot cargo
+
+Cargo tools, if cargo is available:
+  i3-instant-layout rofi-rbw
+
+Custom helpers:
+  /usr/local/bin/lock_and_blur.sh from this dotfiles repo's bin/lock_and_blur.sh
+
+Manual follow-ups not installed automatically:
+  - rescuetime: proprietary app, not in Fedora repos
+  - companion-launcher: custom install expected at /opt/Data/Software/companion-x64/companion-launcher
+  - polkit-gnome-authentication-agent-1: not available from Fedora 44 repos here;
+    lxpolkit is installed as the active configured polkit agent
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    --no-rust-tools)
+      INSTALL_RUST_TOOLS=0
+      shift
+      ;;
+    --no-custom-helpers)
+      INSTALL_CUSTOM_HELPERS=0
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+run() {
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf 'DRY-RUN: '
+    printf '%q ' "$@"
+    printf '\n'
+  else
+    "$@"
+  fi
+}
+
+require_fedora() {
+  if [[ ! -r /etc/os-release ]]; then
+    echo "WARN: cannot read /etc/os-release; assuming Fedora-compatible dnf host" >&2
+    return 0
+  fi
+
+  # shellcheck disable=SC1091
+  source /etc/os-release
+  if [[ "${ID:-}" != "fedora" && "${ID_LIKE:-}" != *fedora* ]]; then
+    echo "WARN: this script is written for Fedora/dnf; detected ID=${ID:-unknown}" >&2
+  fi
+}
+
+install_dnf_packages() {
+  if ! command -v dnf >/dev/null 2>&1; then
+    echo "ERROR: dnf not found; cannot install Fedora packages" >&2
+    exit 1
+  fi
+
+  echo "Installing Fedora i3 dependency packages: ${DNF_PACKAGES[*]}"
+  run sudo dnf install -y "${DNF_PACKAGES[@]}"
+}
+
+install_cargo_tools() {
+  if [[ "$INSTALL_RUST_TOOLS" -ne 1 ]]; then
+    echo "Skipping cargo tools (--no-rust-tools)"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" -ne 1 ]] && ! command -v cargo >/dev/null 2>&1; then
+    echo "WARN: cargo not found even after Fedora package installation; skipping cargo tools: ${CARGO_CRATES[*]}" >&2
+    echo "      Install Rust/cargo first, then re-run or install manually." >&2
+    return 0
+  fi
+
+  local crate
+  for crate in "${CARGO_CRATES[@]}"; do
+    if command -v "$crate" >/dev/null 2>&1; then
+      echo "Already installed: $crate"
+      continue
+    fi
+
+    echo "Installing cargo tool: $crate"
+    if ! run cargo install "$crate"; then
+      echo "WARN: cargo install failed for $crate; install it manually if still needed" >&2
+    fi
+  done
+}
+
+install_custom_helpers() {
+  if [[ "$INSTALL_CUSTOM_HELPERS" -ne 1 ]]; then
+    echo "Skipping custom helpers (--no-custom-helpers)"
+    return 0
+  fi
+
+  local source_helper="$REPO_ROOT/bin/lock_and_blur.sh"
+  local target_helper="/usr/local/bin/lock_and_blur.sh"
+
+  if [[ -f "$source_helper" ]]; then
+    echo "Installing custom lock helper: $target_helper"
+    run sudo install -m 0755 "$source_helper" "$target_helper"
+  else
+    echo "WARN: missing repo helper: $source_helper" >&2
+  fi
+}
+
+print_manual_followups() {
+  cat <<'FOLLOWUPS'
+
+Manual follow-ups still required if you want these i3 config entries active:
+  - Install RescueTime so /usr/bin/rescuetime exists, or comment that i3 exec line.
+  - Install Bitfocus Companion so /opt/Data/Software/companion-x64/companion-launcher exists, or comment that i3 exec line.
+  - Fedora 44 did not show a provider for /usr/libexec/polkit-gnome-authentication-agent-1 here.
+    lxpolkit is installed by this script; consider removing/commenting the duplicate polkit-gnome exec line.
+  - Ensure /home/edavison/Pictures/screen.png exists or update the feh wallpaper path.
+  - Define $alt and $i3lockwall in the i3 config or remove bindings that reference them.
+  - Create id-session.target if that user systemd target is intentional, or switch back to graphical-session.target.
+FOLLOWUPS
+}
+
+main() {
+  require_fedora
+  install_dnf_packages
+  install_cargo_tools
+  install_custom_helpers
+  print_manual_followups
+  echo "i3 dependency installation step complete. Reload/restart i3 after reviewing manual follow-ups."
+}
+
+main "$@"
