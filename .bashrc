@@ -6,6 +6,9 @@ case $- in
       *) return;;
 esac
 
+# Node 24 installed via `n` in the user home directory
+export PATH="$HOME/.n/bin:$PATH"
+
 # don't put duplicate lines or lines starting with space in the history.
 # See bash(1) for more options
 #HISTCONTROL=ignoreboth
@@ -170,7 +173,13 @@ function _update_ps1() {
 #PROMPT_COMMAND="_update_ps1; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"'echo $$ $USER \
 #	               "$(history 1)" >> ~/.bash_eternal_history'
 # PROMPT_COMMAND="_update_ps1; history -a; history -c; history -r; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"
-PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"
+_ghostty_unstick_prompt_state() {
+	# Ghostty can occasionally leave this stuck at 1, which replays stale PS1.
+	if [[ "${_ghostty_executing:-0}" == "1" ]]; then
+		_ghostty_executing=0
+	fi
+}
+PROMPT_COMMAND="_ghostty_unstick_prompt_state; history -a; history -c; history -r; ${PROMPT_COMMAND:+$PROMPT_COMMAND}"
 
 #if [ -f "/opt/Data/Personal/repos/bash-git-prompt/gitprompt.sh" ]; then
 #	GIT_PROMPT_ONLY_IN_REPO=1
@@ -184,6 +193,34 @@ PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND:+$PROMPT_CO
 # echo '[[ -f ~/.bash-preexec.sh ]] && source ~/.bash-preexec.sh' >> ~/.bashrc
 #eval "$(atuin init bash)"
 
+if [[ -n ${BASH_PROMPT_DEBUG:-} ]]; then
+    : "${BASH_PROMPT_DEBUG_FILE:=/tmp/bash-prompt-debug.$$}"
+
+    _bash_prompt_debug_log() {
+        local phase=$1
+        local command=${2:-}
+        printf '%s\tphase=%s\tpwd=%q\toldpwd=%q\tshlvl=%s\tsubshell=%s\tterm=%q\tcmd=%q\tprompt_command=%q\tfuncs=%s\n' \
+            "$(date '+%F %T %z')" \
+            "$phase" \
+            "$PWD" \
+            "${OLDPWD:-}" \
+            "${SHLVL:-}" \
+            "${BASH_SUBSHELL:-}" \
+            "${TERM:-}" \
+            "$command" \
+            "${PROMPT_COMMAND:-}" \
+            "${FUNCNAME[*]}" >>"$BASH_PROMPT_DEBUG_FILE"
+    }
+
+    _bash_prompt_debug_preexec() {
+        _bash_prompt_debug_log preexec "$1"
+    }
+
+    _bash_prompt_debug_precmd() {
+        _bash_prompt_debug_log precmd "$1"
+    }
+fi
+
 
 # if test -n "$DESKTOP_SESSION"
 # 	set -x $(gnome-keyring-daemon--start | string split "=")
@@ -195,6 +232,17 @@ PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND:+$PROMPT_CO
 # eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/probua.minimal.omp.json)"
 # eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/onehalf.minimal.omp.json)"
 eval "$($HOME/bin/oh-my-posh init bash --config ~/.poshthemes/ebd.minimal.omp.json)"
+
+if [[ -n ${BASH_PROMPT_DEBUG:-} ]]; then
+    case ":${preexec_functions[*]:-}:" in
+        *":_bash_prompt_debug_preexec:"*) ;;
+        *) preexec_functions+=(_bash_prompt_debug_preexec) ;;
+    esac
+    case ":${precmd_functions[*]:-}:" in
+        *":_bash_prompt_debug_precmd:"*) ;;
+        *) precmd_functions+=(_bash_prompt_debug_precmd) ;;
+    esac
+fi
 
 # eval "$($HOME/bin/fasd --init auto)"
 
@@ -223,7 +271,7 @@ alias dprune='docker image prune'
 export LIBVA_DRIVER_NAME=iHD
 
 PATH="${PATH:+:${PATH}}"; export PATH;
-export PATH=$PATH:$HOME/bin:$HOME/.local/bin
+export PATH=$PATH:$HOME/bin
 
 # git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && ~/.fzf/install
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
@@ -251,10 +299,10 @@ unset rc
 # PS1='+-\[\e[38;5;39m\][\u from \h][\D{%Y-%m-%d at }\t]\n+-[\[\e[38;5;43m\]\w\[\e[38;5;39m\]]\n\$\[\e[0m\] '
 # PROMPT_COMMAND='PS1_CMD1=$(__git_ps1 " (%s)")'; PS1='\[\e[38;5;39m\]+-\[\e[38;5;33m\][\[\e[38;5;39m\]\u from \h][\D{%Y-%m-%d at }\t]\n+-[\[\e[38;5;43m\]\w\[\e[38;5;39m\]]\[\e[0m\]${PS1_CMD1}\n\[\e[38;5;39m\]\$\[\e[0m\] '
 
-# git clone https://github.com/pyenv/pyenv.git ~/.pyenv
 export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init - bash)"
+eval "$(pyenv virtualenv-init -)"
 
 # Install zoxide
 # fedora: dnf install zoxide
@@ -266,7 +314,7 @@ export PATH="$PATH:$HOME/.cargo/bin"
 eval "$(zoxide init bash)"
 
 # opencode
-export PATH=/home/eddaviso/.opencode/bin:$PATH
+export PATH=/home/eddaviso/.opencode/bin:~/.pi/agent/bin:$PATH
 
 showroute() {
   echo "Kernel IP routing table"
@@ -307,12 +355,7 @@ showroute() {
   }'
 }
 
-#eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv bash)"
-. "$HOME/.cargo/env"
-
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-
-export AI_EOS_HOME="$HOME/.ai-eos"
+# Pi
+export PATH="/home/edavison/.local/share/pi-node/node-v22.23.2-linux-x64/bin:$PATH"
+export PATH=$PATH:$HOME/.pi/agents/bin
 
