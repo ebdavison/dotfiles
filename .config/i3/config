@@ -213,7 +213,7 @@ bindsym $mod+r mode "resize"
 
 bindsym $mod+t exec --no-startup-id rofi -show ssh -matching regex -ssh-command "rofi-rtat {host}" ^
 bindsym $alt+$mod+t exec --no-startup-id rofi -show ssh -matching regex -ssh-command "rofi-rtat root@{host}" ^
-bindsym $mod+p exec --no-startup-id rofi-rbw 
+bindsym $mod+p exec --no-startup-id env PATH=$HOME/.cargo/bin:$HOME/.local/bin:$PATH rofi-rbw
 
 # class                 border  bground text    indicator child_border
 client.focused          #83CAFA #51A2DA #FFFFFF #83CAFA   #51A2DA

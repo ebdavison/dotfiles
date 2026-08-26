@@ -7,6 +7,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DRY_RUN=0
 INSTALL_RUST_TOOLS=1
+INSTALL_PIPX_APPS=1
 INSTALL_CUSTOM_HELPERS=1
 
 DNF_PACKAGES=(
@@ -18,28 +19,41 @@ DNF_PACKAGES=(
   blueman
   flameshot
   cargo
+  pipx
 )
 
 CARGO_CRATES=(
   i3-instant-layout
+  rbw
+)
+
+PIPX_APPS=(
   rofi-rbw
 )
 
 usage() {
   cat <<'USAGE'
-Usage: install-i3-deps [--dry-run] [--no-rust-tools] [--no-custom-helpers]
+Usage: install-i3-deps [--dry-run] [--no-rust-tools] [--no-pipx-apps] [--no-custom-helpers]
 
 Installs Fedora packages used by ~/.config/i3/config and optionally installs
-Rust/cargo-based helpers plus repo-local custom helper scripts.
+Rust/cargo-based helpers, pipx-managed apps, plus repo-local custom helper scripts.
 
 Fedora packages:
-  rofi lxpolkit picom vorta xsecurelock blueman flameshot cargo
+  rofi lxpolkit picom vorta xsecurelock blueman flameshot cargo pipx
 
 Cargo tools, if cargo is available:
-  i3-instant-layout rofi-rbw
+  i3-instant-layout rbw
+
+pipx apps, if pipx is available:
+  rofi-rbw
 
 Custom helpers:
   /usr/local/bin/lock_and_blur.sh from this dotfiles repo's bin/lock_and_blur.sh
+
+Compatibility note:
+  - rofi-rbw 1.7 needs rbw's --raw output support. Fedora 44's rbw package was
+    too old here, so this script installs current rbw via cargo and the i3
+    binding prepends ~/.cargo/bin before /usr/bin.
 
 Manual follow-ups not installed automatically:
   - rescuetime: proprietary app, not in Fedora repos
@@ -57,6 +71,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-rust-tools)
       INSTALL_RUST_TOOLS=0
+      shift
+      ;;
+    --no-pipx-apps)
+      INSTALL_PIPX_APPS=0
       shift
       ;;
     --no-custom-helpers)
@@ -134,6 +152,32 @@ install_cargo_tools() {
   done
 }
 
+install_pipx_apps() {
+  if [[ "$INSTALL_PIPX_APPS" -ne 1 ]]; then
+    echo "Skipping pipx apps (--no-pipx-apps)"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" -ne 1 ]] && ! command -v pipx >/dev/null 2>&1; then
+    echo "WARN: pipx not found even after Fedora package installation; skipping pipx apps: ${PIPX_APPS[*]}" >&2
+    echo "      Install pipx first, then re-run or install manually." >&2
+    return 0
+  fi
+
+  local app
+  for app in "${PIPX_APPS[@]}"; do
+    if command -v "$app" >/dev/null 2>&1; then
+      echo "Already installed: $app"
+      continue
+    fi
+
+    echo "Installing pipx app: $app"
+    if ! run pipx install "$app"; then
+      echo "WARN: pipx install failed for $app; install it manually if still needed" >&2
+    fi
+  done
+}
+
 install_custom_helpers() {
   if [[ "$INSTALL_CUSTOM_HELPERS" -ne 1 ]]; then
     echo "Skipping custom helpers (--no-custom-helpers)"
@@ -169,6 +213,7 @@ main() {
   require_fedora
   install_dnf_packages
   install_cargo_tools
+  install_pipx_apps
   install_custom_helpers
   print_manual_followups
   echo "i3 dependency installation step complete. Reload/restart i3 after reviewing manual follow-ups."
