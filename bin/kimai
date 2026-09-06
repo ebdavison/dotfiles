@@ -49,6 +49,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     start.add_argument("--activity", required=True)
     start.add_argument("--description", default="")
     start.add_argument("--begin")
+    start.add_argument("--tag", action="append", default=[], help="tag name; may be repeated")
+    start.add_argument("--tags", action="append", default=[], help="comma-separated tag names; may be repeated")
 
     stop = subparsers.add_parser("stop")
     stop.add_argument("--id", required=True)
@@ -116,19 +118,36 @@ def kimai_request(
         raise RuntimeError("kimai: invalid JSON response") from None
 
 
+def normalize_tag_inputs(*values: list[str]) -> list[str]:
+    tags: list[str] = []
+    seen: set[str] = set()
+    for group in values:
+        for value in group:
+            for tag in str(value).split(","):
+                text = tag.strip()
+                if text and text not in seen:
+                    tags.append(text)
+                    seen.add(text)
+    return tags
+
+
 def start_timesheet(settings: dict[str, str | bool], args: argparse.Namespace) -> dict:
     begin = args.begin or datetime.now().astimezone().isoformat(timespec="seconds")
+    fields = {
+        "project": args.project,
+        "activity": args.activity,
+        "description": args.description or "",
+        "begin": begin,
+    }
+    tags = normalize_tag_inputs(args.tag, args.tags)
+    if tags:
+        fields["tags"] = ",".join(tags)
     return kimai_request(
         str(settings["base_url"]),
         str(settings["token"]),
         "POST",
         "/timesheets",
-        {
-            "project": args.project,
-            "activity": args.activity,
-            "description": args.description or "",
-            "begin": begin,
-        },
+        fields,
     )
 
 
@@ -394,16 +413,78 @@ def sort_timesheet_rows(rows: list[dict], sort_field: str, reverse: bool) -> lis
     return sorted(rows, key=sort_key, reverse=reverse)
 
 
-def render_timesheets(payload: dict, as_json: bool, sort_field: str = "begin", reverse: bool = True) -> None:
+def resolve_tag_label(
+    tag: Any,
+    settings: dict[str, str | bool] | None,
+    cache: dict[str, list[dict]],
+) -> str:
+    if isinstance(tag, dict):
+        name = str(tag.get("name") or "").strip()
+        identifier = tag.get("id")
+        if name and identifier not in (None, ""):
+            return f"{name} [{identifier}]"
+        if name:
+            return f"{name} [?]"
+        if identifier not in (None, ""):
+            return f"[{identifier}]"
+        return ""
+    name = str(tag or "").strip()
+    if not name:
+        return ""
+    if settings is None:
+        return name
+    path = f"/tags/find?{urllib.parse.urlencode({'name': name})}"
+    if path not in cache:
+        payload = kimai_request(
+            str(settings["base_url"]),
+            str(settings["token"]),
+            "GET",
+            path,
+        )
+        cache[path] = payload if isinstance(payload, list) else []
+    for candidate in cache[path]:
+        if isinstance(candidate, dict) and candidate.get("name") == name:
+            identifier = candidate.get("id")
+            if identifier not in (None, ""):
+                return f"{name} [{identifier}]"
+    return f"{name} [?]"
+
+
+def format_tag_list(
+    tags: Any,
+    settings: dict[str, str | bool] | None,
+    cache: dict[str, list[dict]],
+) -> str:
+    if tags in (None, ""):
+        return ""
+    if isinstance(tags, str):
+        values = normalize_tag_inputs([tags])
+    elif isinstance(tags, list):
+        values = tags
+    else:
+        return ""
+    labels = [resolve_tag_label(tag, settings, cache) for tag in values]
+    return ", ".join(label for label in labels if label)
+
+
+def render_timesheets(
+    payload: dict,
+    as_json: bool,
+    sort_field: str = "begin",
+    reverse: bool = True,
+    settings: dict[str, str | bool] | None = None,
+) -> None:
     if as_json:
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
     rows = payload if isinstance(payload, list) else payload.get("data", [])
     rows = sort_timesheet_rows(list(rows), sort_field, reverse)
+    tag_cache: dict[str, list[dict]] = {}
     for row in rows:
         print(
             f'{row.get("id", "")}\t{row.get("begin", "")}\t'
-            f'{format_duration(row.get("duration", ""))}\t{row.get("description", "")}'
+            f'{format_duration(row.get("duration", ""))}\t{row.get("description", "")}\t'
+            f'{format_tag_list(row.get("tags"), settings, tag_cache)}'
         )
 
 
@@ -452,11 +533,13 @@ def render_timesheet_detail(payload: dict, as_json: bool, settings: dict[str, st
                 return text
         return ""
 
+    tag_cache: dict[str, list[dict]] = {}
     lines = [
         f'ID: {payload.get("id", "")}',
         f'Company: {company_name()}',
         f'Project: {label_with_id(payload.get("project"))}',
         f'Activity: {label_with_id(payload.get("activity"))}',
+        f'Tags: {format_tag_list(payload.get("tags"), settings, tag_cache)}',
         f'Begin: {payload.get("begin", "")}',
         f'End: {payload.get("end", "")}',
         f'Duration: {format_duration(payload.get("duration", ""))}',
@@ -476,10 +559,10 @@ def render_result(
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
     if isinstance(payload, list):
-        render_timesheets(payload, False, sort_field, reverse)
+        render_timesheets(payload, False, sort_field, reverse, settings)
         return
     if isinstance(payload.get("data"), list):
-        render_timesheets(payload, False, sort_field, reverse)
+        render_timesheets(payload, False, sort_field, reverse, settings)
         return
     if settings is not None:
         render_timesheet_detail(payload, False, settings)
@@ -511,7 +594,7 @@ def main(argv: list[str] | None = None) -> int:
                         settings,
                         f"displayed={len(limited_rows)} limit={args.limit} sort={args.sort} reverse={args.reverse}",
                     )
-                    render_timesheets(limited_rows, False, args.sort, not args.reverse)
+                    render_timesheets(limited_rows, False, args.sort, not args.reverse, settings)
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 1

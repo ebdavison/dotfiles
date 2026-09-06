@@ -167,6 +167,39 @@ class TestKimaiAPI(unittest.TestCase):
         self.assertIn("activity=3", captured["body"])
         self.assertIn("description=Standup", captured["body"])
 
+    def test_start_posts_repeated_and_comma_separated_tags(self):
+        kimai = load_kimai()
+        captured = {}
+
+        def fake_urlopen(request: Request):
+            captured["body"] = request.data.decode("utf-8")
+            return DummyResponse({"id": 42, "tags": ["RETIRE01", "billable", "onsite"]})
+
+        with patch.dict(
+            "os.environ",
+            {"KIMAI_URL": "https://kimai.example", "KIMAI_TOKEN": "secret"},
+        ), patch(
+            "urllib.request.urlopen",
+            side_effect=fake_urlopen,
+        ):
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = kimai.main(
+                    [
+                        "start",
+                        "--project",
+                        "7",
+                        "--activity",
+                        "3",
+                        "--tag",
+                        "RETIRE01",
+                        "--tags",
+                        "billable, onsite",
+                    ]
+                )
+        self.assertEqual(exit_code, 0)
+        self.assertIn("tags=RETIRE01%2Cbillable%2Consite", captured["body"])
+
     def test_view_prints_a_compact_row(self):
         kimai = load_kimai()
 
@@ -197,6 +230,44 @@ class TestKimaiAPI(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertIn("42", stdout.getvalue())
         self.assertIn("Standup", stdout.getvalue())
+
+    def test_view_prints_tags_with_ids_in_compact_row(self):
+        kimai = load_kimai()
+        responses = {
+            "https://kimai.example/api/timesheets?page=1&size=500": {
+                "data": [
+                    {
+                        "id": 42,
+                        "begin": "2026-07-10T08:00:00-05:00",
+                        "duration": 3600,
+                        "description": "Standup",
+                        "tags": ["RETIRE01", "missing"],
+                    }
+                ]
+            },
+            "https://kimai.example/api/tags/find?name=RETIRE01": [
+                {"id": 7, "name": "RETIRE01"}
+            ],
+            "https://kimai.example/api/tags/find?name=missing": [],
+        }
+
+        def fake_urlopen(request: Request):
+            self.assertIn(request.full_url, responses)
+            return DummyResponse(responses[request.full_url])
+
+        with patch.dict(
+            "os.environ",
+            {"KIMAI_URL": "https://kimai.example", "KIMAI_TOKEN": "secret"},
+        ), patch(
+            "urllib.request.urlopen",
+            side_effect=fake_urlopen,
+        ):
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = kimai.main(["view", "--limit", "1"])
+        self.assertEqual(exit_code, 0)
+        self.assertIn("RETIRE01 [7]", stdout.getvalue())
+        self.assertIn("missing [?]", stdout.getvalue())
 
     def test_view_prints_top_level_list_response(self):
         kimai = load_kimai()
@@ -542,6 +613,7 @@ class TestKimaiAPI(unittest.TestCase):
                 "description": "Configure postgresql on fincon server",
                 "project": 2,
                 "activity": 9,
+                "tags": ["RETIRE01"],
             },
             "https://kimai.example/api/projects/2": {
                 "id": 2,
@@ -552,6 +624,9 @@ class TestKimaiAPI(unittest.TestCase):
                 "id": 9,
                 "name": "Configuration",
             },
+            "https://kimai.example/api/tags/find?name=RETIRE01": [
+                {"id": 7, "name": "RETIRE01"}
+            ],
         }
 
         def fake_urlopen(request: Request):
@@ -574,6 +649,7 @@ class TestKimaiAPI(unittest.TestCase):
         self.assertIn("Company: Fincon [8]", output)
         self.assertIn("Project: Server setup [2]", output)
         self.assertIn("Activity: Configuration [9]", output)
+        self.assertIn("Tags: RETIRE01 [7]", output)
         self.assertIn("Duration: 00:49:00", output)
 
     def test_view_by_id_resolves_numeric_customer_reference(self):
