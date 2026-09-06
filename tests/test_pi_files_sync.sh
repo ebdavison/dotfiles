@@ -204,6 +204,39 @@ test_deploy_can_skip_profile_directory_conflict() {
   assert_file_content "$TEST_ROOT/deploy-home/.pi-work/git/local.txt" "old git state"
 }
 
+test_installed_deploy_script_uses_current_dotfiles_checkout_instead_of_home() {
+  setup_test_repo
+  trap cleanup_test_repo RETURN
+  seed_minimal_repo_and_ai_eos
+  mkdir -p "$TEST_ROOT/deploy-home/bin" "$TEST_ROOT/deploy-home/.pi/agent"
+  cp "$TEST_ROOT/repo/bin/deploy-pi-files" "$TEST_ROOT/deploy-home/bin/deploy-pi-files"
+  chmod +x "$TEST_ROOT/deploy-home/bin/deploy-pi-files"
+  printf '{"packages":["old-home"]}\n' > "$TEST_ROOT/deploy-home/.pi/agent/settings.json"
+
+  (cd "$TEST_ROOT/repo" && HOME="$TEST_ROOT/deploy-home" "$TEST_ROOT/deploy-home/bin/deploy-pi-files") > "$TEST_ROOT/output.txt" 2>&1
+
+  assert_file_content "$TEST_ROOT/deploy-home/.pi/agent/AGENTS.md" "agents"
+  assert_file_content "$TEST_ROOT/deploy-home/.pi/agent/settings.json" '{"packages":[]}'
+  grep -q 'Pi file deploy complete' "$TEST_ROOT/output.txt" || fail "missing deploy completion message"
+}
+
+test_installed_deploy_script_rejects_home_as_repo_when_run_outside_checkout() {
+  setup_test_repo
+  trap cleanup_test_repo RETURN
+  seed_minimal_repo_and_ai_eos
+  mkdir -p "$TEST_ROOT/deploy-home/bin" "$TEST_ROOT/deploy-home/.pi/agent" "$TEST_ROOT/deploy-home/tmp"
+  cp "$TEST_ROOT/repo/bin/deploy-pi-files" "$TEST_ROOT/deploy-home/bin/deploy-pi-files"
+  chmod +x "$TEST_ROOT/deploy-home/bin/deploy-pi-files"
+  printf '{"packages":["old-home"]}\n' > "$TEST_ROOT/deploy-home/.pi/agent/settings.json"
+
+  if (cd "$TEST_ROOT/deploy-home/tmp" && HOME="$TEST_ROOT/deploy-home" "$TEST_ROOT/deploy-home/bin/deploy-pi-files") > "$TEST_ROOT/output.txt" 2>&1; then
+    fail "expected installed deploy to fail outside a dotfiles checkout"
+  fi
+
+  grep -q 'Cannot find dotfiles checkout' "$TEST_ROOT/output.txt" || fail "missing checkout failure message"
+  assert_file_content "$TEST_ROOT/deploy-home/.pi/agent/settings.json" '{"packages":["old-home"]}'
+}
+
 run_test() {
   local name="$1"
   echo "Running $name"
@@ -215,5 +248,7 @@ run_test test_deploy_copies_curated_files_and_creates_profile_symlinks
 run_test test_deploy_refuses_missing_ai_eos_by_default
 run_test test_deploy_prompts_and_backs_up_before_replacing_profile_directory_conflict
 run_test test_deploy_can_skip_profile_directory_conflict
+run_test test_installed_deploy_script_uses_current_dotfiles_checkout_instead_of_home
+run_test test_installed_deploy_script_rejects_home_as_repo_when_run_outside_checkout
 
 echo "All pi files sync tests passed"

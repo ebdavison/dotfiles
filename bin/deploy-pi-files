@@ -36,10 +36,56 @@ AI_EOS_PROFILE_LINKS=(
 backup_stamp="${DOTFILES_DEPLOY_BACKUP_STAMP:-$(date +%Y%m%d-%H%M%S)}"
 backup_root=""
 
+is_dotfiles_repo_root() {
+  local candidate="$1"
+  local home_root
+  home_root="$(cd "$HOME" && pwd -P)"
+
+  [[ "$candidate" != "$home_root" && -f "$candidate/bin/deploy-pi-files" && -d "$candidate/.pi/agent" ]]
+}
+
+find_repo_from_cwd() {
+  local candidate
+  candidate="$(pwd -P)"
+
+  while [[ "$candidate" != "/" ]]; do
+    if is_dotfiles_repo_root "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+    candidate="$(dirname "$candidate")"
+  done
+
+  return 1
+}
+
 repo_root() {
-  local script_dir
+  local candidate script_dir
+
+  if [[ -n "${DOTFILES_REPO:-}" ]]; then
+    candidate="$(cd "$DOTFILES_REPO" && pwd -P)"
+    if is_dotfiles_repo_root "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+    echo "DOTFILES_REPO is not a dotfiles checkout: $DOTFILES_REPO" >&2
+    exit 2
+  fi
+
+  if candidate="$(find_repo_from_cwd)"; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-  cd "$script_dir/.." && pwd -P
+  candidate="$(cd "$script_dir/.." && pwd -P)"
+  if is_dotfiles_repo_root "$candidate"; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  echo "Cannot find dotfiles checkout. Run from the dotfiles repository or set DOTFILES_REPO=/path/to/dotfiles." >&2
+  exit 2
 }
 
 validate_home() {

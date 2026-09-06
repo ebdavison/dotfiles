@@ -48,7 +48,17 @@ PI_SOURCE_HOME=/path/to/source-home ./bin/pull-pi-files
 Use [`bin/deploy-pi-files`](bin/deploy-pi-files) to copy the managed Pi files from this repository back into the logged-in user's home directory and create/update the Pi profile symlinks:
 
 ```bash
+cd ~/repos/dotfiles
 ./bin/deploy-pi-files
+```
+
+If running an installed copy such as `~/bin/deploy-pi-files`, run it from inside the dotfiles checkout or set `DOTFILES_REPO` explicitly:
+
+```bash
+cd ~/repos/dotfiles
+~/bin/deploy-pi-files
+# or
+DOTFILES_REPO=~/repos/dotfiles ~/bin/deploy-pi-files
 ```
 
 Managed files include global Pi instructions, settings, the AI-EOS context extension, Pi wrapper scripts, selected support/test files, and `~/.pi/agent/skills/`. Runtime state such as auth files, sessions, npm cache, and git cache is intentionally not pulled into the repo.
