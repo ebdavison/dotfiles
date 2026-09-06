@@ -29,6 +29,40 @@ Existing files are handled safely:
 - destination-only files under deployed directories are left untouched
 - deployed files have permissions normalized so scripts stay executable and config/text files do not
 
+## Pi files sync
+
+Pi agent files are managed separately from the general dotfiles deploy because they include a curated subset of `~/.pi/agent` plus profile setup for `~/.pi-personal` and `~/.pi-work`.
+
+Use [`bin/pull-pi-files`](bin/pull-pi-files) to copy the managed Pi files from the current user's home directory into this repository:
+
+```bash
+./bin/pull-pi-files
+```
+
+Set `PI_SOURCE_HOME` to pull from another home-like directory during migration or testing:
+
+```bash
+PI_SOURCE_HOME=/path/to/source-home ./bin/pull-pi-files
+```
+
+Use [`bin/deploy-pi-files`](bin/deploy-pi-files) to copy the managed Pi files from this repository back into the logged-in user's home directory and create/update the Pi profile symlinks:
+
+```bash
+./bin/deploy-pi-files
+```
+
+Managed files include global Pi instructions, settings, the AI-EOS context extension, Pi wrapper scripts, selected support/test files, and `~/.pi/agent/skills/`. Runtime state such as auth files, sessions, npm cache, and git cache is intentionally not pulled into the repo.
+
+`deploy-pi-files` requires AI-EOS to exist at `~/.ai-eos/AGENT_ORIENTATION_PROMPT.md` by default. To deploy Pi files before AI-EOS is present, set:
+
+```bash
+PI_DEPLOY_ALLOW_MISSING_AI_EOS=1 ./bin/deploy-pi-files
+```
+
+Profile symlinks are created under `~/.pi-personal` and `~/.pi-work` for shared Pi agent config, extensions, npm/git state, skills, and AI-EOS context files. Existing conflicting profile paths are handled interactively with `[d]iff`, `[y]es replace`, `[n]o skip`, or `[q]uit`; replaced paths are backed up under `~/.dotfiles-deploy-backup/YYYYMMDD-HHMMSS/`.
+
+After deploying, restart Pi or run `/reload` in existing sessions.
+
 ## Kimai CLI
 
 This repo includes a small Kimai time-tracking CLI at [`bin/kimai`](bin/kimai).
