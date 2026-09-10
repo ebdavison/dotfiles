@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-$(pwd)}"
 SCRIPT_UNDER_TEST="$REPO_ROOT/bin/install-i3-deps"
 I3_CONFIG_UNDER_TEST="$REPO_ROOT/.config/i3/config"
+I3_SESSION_TARGET_UNDER_TEST="$REPO_ROOT/.config/systemd/user/i3-session.target"
 
 fail() {
   echo "FAIL: $*" >&2
@@ -83,6 +84,16 @@ test_i3_instant_layout_typo_is_fixed() {
   assert_contains "$I3_CONFIG_UNDER_TEST" "i3-instant-layout -"
 }
 
+test_i3_starts_a_graphical_session_target_and_leaves_portal_activation_to_dbus() {
+  assert_file_exists "$I3_SESSION_TARGET_UNDER_TEST"
+  assert_contains "$I3_SESSION_TARGET_UNDER_TEST" "BindsTo=graphical-session.target"
+  assert_contains "$I3_SESSION_TARGET_UNDER_TEST" "Before=graphical-session.target"
+  assert_contains "$I3_CONFIG_UNDER_TEST" "dbus-update-activation-environment --systemd DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE"
+  assert_contains "$I3_CONFIG_UNDER_TEST" "systemctl --user start i3-session.target"
+  assert_not_contains "$I3_CONFIG_UNDER_TEST" "systemctl --user start id-session.target"
+  assert_not_contains "$I3_CONFIG_UNDER_TEST" "systemctl --user start xdg-desktop-portal"
+}
+
 run_test() {
   local name="$1"
   echo "Running $name"
@@ -94,5 +105,6 @@ run_test test_installer_has_dry_run_and_uses_fedora_package_manager
 run_test test_rofi_rbw_is_installed_with_pipx_not_cargo
 run_test test_rofi_rbw_installs_newer_rbw_and_i3_prefers_user_cargo_bin
 run_test test_i3_instant_layout_typo_is_fixed
+run_test test_i3_starts_a_graphical_session_target_and_leaves_portal_activation_to_dbus
 
 echo "All i3 dependency installer tests passed"
