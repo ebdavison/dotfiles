@@ -19,13 +19,11 @@ font pango:monospace 8
 # text rendering and scalability on retina/hidpi displays (thanks to pango).
 #font pango:DejaVu Sans Mono 8
 
-# start the graphical session
-# systemctl --user set-environment XDG_SESSION_TYPE=x11 XDG_CURRENT_DESKTOP=i3
-# systemctl --user start --no-block xdg-desktop-portal.service
-exec --no-startup-id systemctl --user import-environment DISPLAY XAUTHORITY I3SOCK
-# exec --no-startup-id systemctl --user start graphical-session.target
-exec --no-startup-id systemctl --user start id-session.target
-exec --no-startup-id systemctl --user start xdg-desktop-portal
+# Make the X11/i3 session context available to user services and D-Bus activation.
+exec --no-startup-id dbus-update-activation-environment --systemd DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE
+
+# Activate graphical-session.target through the user-managed i3 session target.
+exec --no-startup-id systemctl --user start i3-session.target
 
 # Start XDG autostart .desktop files using dex. See also
 # https://wiki.archlinux.org/index.php/XDG_Autostart

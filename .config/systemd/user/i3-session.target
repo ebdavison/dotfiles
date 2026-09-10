@@ -1,0 +1,4 @@
+[Unit]
+Description=i3 graphical session
+BindsTo=graphical-session.target
+Before=graphical-session.target
