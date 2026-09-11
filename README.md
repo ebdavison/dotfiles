@@ -73,6 +73,16 @@ Profile symlinks are created under `~/.pi-personal` and `~/.pi-work` for shared 
 
 After deploying, restart Pi or run `/reload` in existing sessions.
 
+### Agent tool installation
+
+On Linux, use [`bin/install-agent-tools`](bin/install-agent-tools) to check for and optionally install Pi, Herdr, Obsidian Headless, Codex, and Claude Code. Each missing tool displays its install command and requires an explicit confirmation; existing tools are left unchanged.
+
+```bash
+./bin/install-agent-tools
+```
+
+Pi extensions are reconciled from the selected profile settings after Pi is available. Use `--profile personal`, `--profile work`, or `--profile all` (default) to select profiles. The command does not authenticate Codex, Claude Code, or Obsidian Headless, and it does not configure or sync a vault. For Obsidian Headless, run `ob login` and `ob sync-setup` manually; do not run it alongside Obsidian Desktop Sync on the same device.
+
 ## Kimai CLI
 
 This repo includes a small Kimai time-tracking CLI at [`bin/kimai`](bin/kimai).

@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+profiles=(personal work)
+
+usage() {
+  cat <<'USAGE'
+Usage: install-agent-tools [--profile personal|work|all]
+
+Check for Pi, Herdr, Obsidian Headless, Codex, and Claude Code. For every
+missing tool, show its install command and ask before installing it. After Pi
+is available, reconcile the selected Pi profile extensions from settings.json.
+USAGE
+}
+
+validate_home() {
+  if [[ -z "${HOME:-}" || "$HOME" == "/" ]]; then
+    echo "Refusing to run with unsafe HOME: ${HOME:-<empty>}" >&2
+    exit 2
+  fi
+}
+
+validate_platform() {
+  if [[ "$(uname -s)" != "Linux" ]]; then
+    echo "install-agent-tools supports Linux only." >&2
+    exit 2
+  fi
+}
+
+select_profiles() {
+  local selected="all"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --profile)
+        if [[ $# -lt 2 ]]; then
+          echo "--profile requires personal, work, or all" >&2
+          exit 2
+        fi
+        selected="$2"
+        shift 2
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        echo "Unknown argument: $1" >&2
+        usage >&2
+        exit 2
+        ;;
+    esac
+  done
+
+  case "$selected" in
+    all)
+      profiles=(personal work)
+      ;;
+    personal|work)
+      profiles=("$selected")
+      ;;
+    *)
+      echo "Invalid profile: $selected" >&2
+      exit 2
+      ;;
+  esac
+}
+
+prompt_install() {
+  local label="$1"
+  local command="$2"
+  local answer
+
+  printf '%s is missing. Install with:\n  %s\nInstall %s? [y/N]: ' "$label" "$command" "$label" >&2
+  if ! IFS= read -r answer; then
+    echo "Skipped $label (no answer received)." >&2
+    return 1
+  fi
+
+  case "$answer" in
+    y|Y|yes|YES)
+      return 0
+      ;;
+    *)
+      echo "Skipped $label." >&2
+      return 1
+      ;;
+  esac
+}
+
+require_command() {
+  local command="$1"
+  local label="$2"
+
+  if command -v "$command" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "Cannot install $label: required command '$command' is unavailable." >&2
+  return 1
+}
+
+verify_installed() {
+  local command="$1"
+  local label="$2"
+
+  hash -r
+  if command -v "$command" >/dev/null 2>&1; then
+    echo "Installed $label."
+    return 0
+  fi
+
+  echo "$label installation completed but '$command' is still unavailable on PATH." >&2
+  return 1
+}
+
+ensure_npm_tool() {
+  local command="$1"
+  local label="$2"
+  local package="$3"
+  local install_command="npm install -g $package"
+
+  if command -v "$command" >/dev/null 2>&1; then
+    echo "Found $label: $(command -v "$command")"
+    return 0
+  fi
+
+  if ! prompt_install "$label" "$install_command"; then
+    return 0
+  fi
+
+  require_command npm "$label"
+  npm install -g "$package"
+  verify_installed "$command" "$label"
+}
+
+ensure_herdr() {
+  local install_command='curl -fsSL https://herdr.dev/install.sh | sh'
+
+  if command -v herdr >/dev/null 2>&1; then
+    echo "Found Herdr: $(command -v herdr)"
+    return 0
+  fi
+
+  if ! prompt_install "Herdr" "$install_command"; then
+    return 0
+  fi
+
+  require_command curl "Herdr"
+  curl -fsSL https://herdr.dev/install.sh | sh
+  verify_installed herdr "Herdr"
+}
+
+ensure_agent_tools() {
+  ensure_npm_tool pi "Pi" "@earendil-works/pi-coding-agent"
+  ensure_herdr
+  ensure_npm_tool ob "Obsidian Headless" "obsidian-headless"
+  ensure_npm_tool codex "Codex" "@openai/codex"
+  ensure_npm_tool claude "Claude Code" "@anthropic-ai/claude-code"
+}
+
+profile_dir() {
+  local profile="$1"
+  printf '%s\n' "$HOME/.pi-$profile"
+}
+
+reconcile_profile() {
+  local profile="$1"
+  local dir
+  dir="$(profile_dir "$profile")"
+
+  if [[ ! -f "$dir/settings.json" ]]; then
+    echo "WARN: missing $dir/settings.json; skipping $profile" >&2
+    return 0
+  fi
+
+  mkdir -p "$dir"
+  echo "Reconciling Pi packages for $profile ($dir)"
+  PI_CODING_AGENT_DIR="$dir" PI_ENV="$profile" pi update --extensions
+}
+
+reconcile_pi_profiles() {
+  if ! command -v pi >/dev/null 2>&1; then
+    echo "Pi package reconciliation skipped: pi is unavailable." >&2
+    return 0
+  fi
+
+  local profile
+  for profile in "${profiles[@]}"; do
+    reconcile_profile "$profile"
+  done
+}
+
+main() {
+  validate_home
+  validate_platform
+  select_profiles "$@"
+  ensure_agent_tools
+  reconcile_pi_profiles
+
+  echo "Agent tool setup complete. Restart Pi or run /reload in existing sessions."
+  echo "Obsidian Headless is installed only; run 'ob login' and configure a vault manually."
+}
+
+main "$@"
