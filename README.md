@@ -75,7 +75,7 @@ After deploying, restart Pi or run `/reload` in existing sessions.
 
 ### Agent tool installation
 
-On Linux, use [`bin/install-agent-tools`](bin/install-agent-tools) to check for and optionally install Pi, Herdr, Obsidian Headless, Codex, and Claude Code. Each missing tool displays its install command and requires an explicit confirmation; existing tools are left unchanged.
+On Linux, use [`bin/install-agent-tools`](bin/install-agent-tools) to check for and optionally install Node.js 22.x/npm, Pi, Herdr, Obsidian Headless, Codex, and Claude Code. Node.js must be 22.x; missing or out-of-policy versions use the NodeSource 22.x repository and `apt-get` (Debian/Ubuntu) or `dnf` (Fedora/RHEL). Each missing or out-of-policy tool displays its install command and requires an explicit confirmation; Node.js setup also requires confirmation before using `sudo` and the NodeSource setup script.
 
 ```bash
 ./bin/install-agent-tools
