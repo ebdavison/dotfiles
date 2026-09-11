@@ -81,7 +81,7 @@ On Linux, use [`bin/install-agent-tools`](bin/install-agent-tools) to check for 
 ./bin/install-agent-tools
 ```
 
-Pi extensions are reconciled from the selected profile settings after Pi is available. Use `--profile personal`, `--profile work`, or `--profile all` (default) to select profiles. The command does not authenticate Codex, Claude Code, or Obsidian Headless, and it does not configure or sync a vault. For Obsidian Headless, run `ob login` and `ob sync-setup` manually; do not run it alongside Obsidian Desktop Sync on the same device.
+Pi extensions are reconciled from the selected profile settings after Pi is available. Use `--profile personal`, `--profile work`, or `--profile all` (default) to select profiles. Before installing npm-backed tools, the installer checks `npm prefix -g`. If it points outside the current user's home directory (for example `/usr`), it explains the root-permission issue and asks before configuring the user-local prefix with `npm config set prefix "$HOME/.local" --location=user`. Declining skips npm-backed tools rather than using `sudo npm`. The command does not authenticate Codex, Claude Code, or Obsidian Headless, and it does not configure or sync a vault. For Obsidian Headless, run `ob login` and `ob sync-setup` manually; do not run it alongside Obsidian Desktop Sync on the same device.
 
 ## Kimai CLI
 

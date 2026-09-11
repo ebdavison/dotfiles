@@ -223,6 +223,54 @@ ensure_nodejs_22() {
   return 1
 }
 
+npm_prefix_is_user_local() {
+  local prefix="$1"
+  [[ "$prefix" == "$HOME" || "$prefix" == "$HOME/"* ]]
+}
+
+ensure_user_local_npm_prefix() {
+  local prefix target="$HOME/.local" answer
+
+  if ! prefix="$(npm prefix -g)"; then
+    echo "Cannot determine npm global prefix; skipping npm-backed agent tools." >&2
+    return 1
+  fi
+
+  if npm_prefix_is_user_local "$prefix"; then
+    PATH="$prefix/bin:$PATH"
+    return 0
+  fi
+
+  printf 'npm global prefix is system-owned: %s\n' "$prefix" >&2
+  printf 'Configure npm global installs for this user with:\n  npm config set prefix %s --location=user\nUse the user-local npm prefix? [y/N]: ' "$target" >&2
+  if ! IFS= read -r answer; then
+    echo "Skipped user-local npm prefix (no answer received)." >&2
+    return 1
+  fi
+
+  case "$answer" in
+    y|Y|yes|YES)
+      ;;
+    *)
+      echo "Skipped user-local npm prefix." >&2
+      return 1
+      ;;
+  esac
+
+  if ! npm config set prefix "$target" --location=user; then
+    echo "Failed to configure the user-local npm prefix." >&2
+    return 1
+  fi
+
+  if ! prefix="$(npm prefix -g)" || [[ "$prefix" != "$target" ]]; then
+    echo "npm global prefix verification failed; expected $target, got ${prefix:-<empty>}." >&2
+    return 1
+  fi
+
+  PATH="$target/bin:$PATH"
+  echo "Configured user-local npm prefix: $target"
+}
+
 ensure_npm_tool() {
   local command="$1"
   local label="$2"
@@ -261,15 +309,22 @@ ensure_herdr() {
 }
 
 ensure_agent_tools() {
+  local npm_tools_ready=0
+
   if nodejs_22_ready; then
-    ensure_npm_tool pi "Pi" "@earendil-works/pi-coding-agent"
+    if ensure_user_local_npm_prefix; then
+      npm_tools_ready=1
+      ensure_npm_tool pi "Pi" "@earendil-works/pi-coding-agent"
+    else
+      echo "Skipping npm-backed agent tools: npm global installs are not configured for this user." >&2
+    fi
   else
     echo "Skipping npm-backed agent tools: Node.js 22.x and npm are unavailable." >&2
   fi
 
   ensure_herdr
 
-  if nodejs_22_ready; then
+  if [[ "$npm_tools_ready" == "1" ]]; then
     ensure_npm_tool ob "Obsidian Headless" "obsidian-headless"
     ensure_npm_tool codex "Codex" "@openai/codex"
     ensure_npm_tool claude "Claude Code" "@anthropic-ai/claude-code"

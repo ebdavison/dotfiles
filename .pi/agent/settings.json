@@ -1,7 +1,7 @@
 {
-  "lastChangelogVersion": "0.84.2",
+  "lastChangelogVersion": "0.85.1",
   "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.5",
+  "defaultModel": "gpt-5.6-terra",
   "defaultThinkingLevel": "high",
   "theme": "dark",
   "packages": [
@@ -10,7 +10,9 @@
     "npm:pi-obsidian",
     "npm:pi-subagents",
     "git:github.com/badlogic/pi-telegram",
-    "npm:pi-puppeteer"
+    "npm:pi-puppeteer",
+    "npm:pi-web-access",
+    "../repos/personal-toolbox/extensions/pi-myusage"
   ],
   "extensions": [
     "/home/edavison/.pi/agent/extensions/ai-eos-context.ts",
@@ -18,5 +20,31 @@
     "/home/edavison/.pi/agent/extensions/weekly-git-summary/index.ts",
     "/home/edavison/.pi/agent/extensions/cold-email/index.ts",
     "/home/edavison/.pi/agent/extensions/web-read/index.ts"
-  ]
+  ],
+  "modelExclusions": {
+    "defaultTtlMs": 300000
+  },
+  "subagents": {
+    "defaultModel": "openai-codex/gpt-5.6-terra",
+    "agentOverrides": {
+      "scout": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "fallbackModels": [
+          "openai-codex/gpt-5.6-luna"
+        ]
+      },
+      "worker": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "fallbackModels": [
+          "openai-codex/gpt-5.6-luna"
+        ]
+      },
+      "reviewer": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "fallbackModels": [
+          "openai-codex/gpt-5.6-luna"
+        ]
+      }
+    }
+  }
 }

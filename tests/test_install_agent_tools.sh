@@ -19,6 +19,7 @@ setup_repo() {
   printf '{"packages":["npm:pi-subagents"]}\n' > "$TEST_ROOT/home/.pi-work/settings.json"
   printf 'ID=fedora\nID_LIKE="rhel fedora"\n' > "$TEST_ROOT/os-release"
   : > "$TEST_ROOT/tool.log"
+  printf '%s\n' "$TEST_ROOT/home/.local" > "$TEST_ROOT/npm-prefix"
   write_fake_npm
   write_fake_curl
   write_fake_sudo
@@ -78,7 +79,15 @@ if [[ "${1:-}" == "--version" ]]; then
   echo "10.9.8"
   exit 0
 fi
+if [[ "${1:-}" == "prefix" && "${2:-}" == "-g" ]]; then
+  cat "$FAKE_NPM_PREFIX_FILE"
+  exit 0
+fi
 printf 'npm|%s\n' "$*" >> "$TOOL_LOG"
+if [[ "${1:-}" == "config" && "${2:-}" == "set" && "${3:-}" == "prefix" ]]; then
+  printf '%s\n' "$4" > "$FAKE_NPM_PREFIX_FILE"
+  exit 0
+fi
 if [[ "${1:-}" == "install" && "${2:-}" == "-g" ]]; then
   case "${3:-}" in
     @earendil-works/pi-coding-agent)
@@ -192,6 +201,7 @@ run_installer() {
       PATH="${TEST_PATH:-$TEST_ROOT/fake-bin:/usr/bin:/bin}" \
       TOOL_LOG="$TEST_ROOT/tool.log" \
       FAKE_BIN="$TEST_ROOT/fake-bin" \
+      FAKE_NPM_PREFIX_FILE="$TEST_ROOT/npm-prefix" \
       INSTALL_AGENT_TOOLS_OS_RELEASE="$TEST_ROOT/os-release" \
       /usr/bin/bash "$TEST_ROOT/repo/bin/install-agent-tools" "$@"
   )
@@ -251,6 +261,48 @@ test_replaces_outdated_node_before_agent_tool_checks() {
 
   grep -Fxq 'dnf|install -y nodejs' "$TEST_ROOT/tool.log" || fail "missing Node.js 22 upgrade"
   grep -Fq 'Node.js 22.x and npm are missing or out of policy.' "$TEST_ROOT/output.txt" || fail "missing Node.js policy prompt"
+}
+
+test_offers_user_local_npm_prefix_when_global_prefix_is_system_owned() {
+  setup_repo
+  trap cleanup_repo RETURN
+  write_fake_node v22.23.2
+  printf '/usr\n' > "$TEST_ROOT/npm-prefix"
+
+  run_installer $'y\nn\nn\nn\nn\nn\n' > "$TEST_ROOT/output.txt" 2>&1
+
+  grep -Fxq "npm|config set prefix $TEST_ROOT/home/.local --location=user" "$TEST_ROOT/tool.log" || fail "missing user-local npm prefix configuration"
+  [[ "$(< "$TEST_ROOT/npm-prefix")" == "$TEST_ROOT/home/.local" ]] || fail "expected npm prefix to be user-local"
+  grep -Fq 'npm global prefix is system-owned: /usr' "$TEST_ROOT/output.txt" || fail "missing system npm prefix explanation"
+}
+
+test_declining_user_local_npm_prefix_leaves_system_prefix_unchanged() {
+  setup_repo
+  trap cleanup_repo RETURN
+  write_fake_node v22.23.2
+  printf '/usr\n' > "$TEST_ROOT/npm-prefix"
+
+  run_installer $'n\nn\nn\nn\nn\nn\n' > "$TEST_ROOT/output.txt" 2>&1
+
+  [[ "$(< "$TEST_ROOT/npm-prefix")" == '/usr' ]] || fail "expected system npm prefix to remain unchanged"
+  if grep -Fq 'npm|config set prefix' "$TEST_ROOT/tool.log"; then
+    fail "did not expect npm prefix configuration after decline"
+  fi
+  if grep -Fq 'npm|install -g' "$TEST_ROOT/tool.log"; then
+    fail "did not expect npm-backed installation after declining the user-local prefix"
+  fi
+}
+
+test_user_local_npm_prefix_needs_no_remediation() {
+  setup_repo
+  trap cleanup_repo RETURN
+  write_fake_node v22.23.2
+
+  run_installer $'n\nn\nn\nn\nn\n' > "$TEST_ROOT/output.txt" 2>&1
+
+  if grep -Fq 'npm|config set prefix' "$TEST_ROOT/tool.log"; then
+    fail "did not expect npm prefix configuration for a user-local prefix"
+  fi
 }
 
 test_failed_npm_validation_skips_npm_tools_but_offers_herdr() {
@@ -351,6 +403,9 @@ run_test() {
 run_test test_replaces_out_of_policy_nodejs_then_installs_approved_agent_tools_and_reconciles_profiles
 run_test test_installs_nodejs_22_from_deb_nodesource_on_ubuntu
 run_test test_replaces_outdated_node_before_agent_tool_checks
+run_test test_offers_user_local_npm_prefix_when_global_prefix_is_system_owned
+run_test test_declining_user_local_npm_prefix_leaves_system_prefix_unchanged
+run_test test_user_local_npm_prefix_needs_no_remediation
 run_test test_failed_npm_validation_skips_npm_tools_but_offers_herdr
 run_test test_missing_node_package_manager_never_runs_nodesource_setup
 run_test test_default_no_skips_nodejs_and_all_tool_installers

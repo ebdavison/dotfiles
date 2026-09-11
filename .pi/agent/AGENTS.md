@@ -58,3 +58,8 @@ Before any final answer after troubleshooting, implementation, operational advic
 If yes to any of these, append a structured entry to today's `~/.ai-eos/memory/Memory YYYY-MM-DD.md` before the final response. Do not wait for "session completion" when the meaningful event has already happened. Include service/client, root cause, corrected pattern, checks run or recommended, files changed if any, and follow-ups. Never store secrets.
 
 Never store credentials, API keys, passwords, private keys, auth cookies, or other secrets in AI-EOS.
+
+## general behaviour
+
+Be extremely concise.  Sacrifice grammar for the sake on concision.
+
