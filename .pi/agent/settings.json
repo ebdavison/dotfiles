@@ -1,7 +1,7 @@
 {
-  "lastChangelogVersion": "0.85.1",
+  "lastChangelogVersion": "0.86.1",
   "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.6-terra",
+  "defaultModel": "gpt-5.6-luna",
   "defaultThinkingLevel": "high",
   "theme": "dark",
   "packages": [
@@ -25,25 +25,28 @@
     "defaultTtlMs": 300000
   },
   "subagents": {
-    "defaultModel": "openai-codex/gpt-5.6-terra",
+    "defaultModel": "openai-codex/gpt-5.6-luna",
     "agentOverrides": {
       "scout": {
-        "model": "openai-codex/gpt-5.6-terra",
-        "fallbackModels": [
-          "openai-codex/gpt-5.6-luna"
-        ]
+        "model": "openai-codex/gpt-5.6-luna"
+      },
+      "researcher": {
+        "model": "openai-codex/gpt-5.6-luna"
+      },
+      "evidence-auditor": {
+        "model": "openai-codex/gpt-5.6-luna"
       },
       "worker": {
-        "model": "openai-codex/gpt-5.6-terra",
-        "fallbackModels": [
-          "openai-codex/gpt-5.6-luna"
-        ]
+        "model": "openai-codex/gpt-5.6-luna"
+      },
+      "oracle": {
+        "model": "openai-codex/gpt-5.6-luna"
+      },
+      "delegate": {
+        "model": "openai-codex/gpt-5.6-luna"
       },
       "reviewer": {
-        "model": "openai-codex/gpt-5.6-terra",
-        "fallbackModels": [
-          "openai-codex/gpt-5.6-luna"
-        ]
+        "model": "openai-codex/gpt-5.6-luna"
       }
     }
   }

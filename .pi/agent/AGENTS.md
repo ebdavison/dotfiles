@@ -43,7 +43,7 @@ Use the memory routing rules in `~/.ai-eos/AI/MEMORY_SYSTEM.md`:
 - Project state: `~/.ai-eos/AI/PROJECTS/*.md`
 - Decisions: `~/.ai-eos/AI/DECISIONS.md`
 - Lessons learned: `~/.ai-eos/AI/LESSONS_LEARNED.md`
-- Significant chronological events: `~/.ai-eos/memory/Memory YYYY-MM-DD.md`
+- Significant chronological events: `~/.ai-eos/memory/events/YYYY-MM-DD/*.md`, written through `ai_eos_memory_checkpoint`; `Memory YYYY-MM-DD.md` is a generated projection
 
 Do not invent additional memory files or competing documentation.
 
@@ -55,7 +55,7 @@ Before any final answer after troubleshooting, implementation, operational advic
 2. Did it involve infrastructure, databases, deployment, proxy/routing, backups, security, client systems, or operational behavior?
 3. Would a future agent benefit from not rediscovering this?
 
-If yes to any of these, append a structured entry to today's `~/.ai-eos/memory/Memory YYYY-MM-DD.md` before the final response. Do not wait for "session completion" when the meaningful event has already happened. Include service/client, root cause, corrected pattern, checks run or recommended, files changed if any, and follow-ups. Never store secrets.
+If yes to any of these, call `ai_eos_memory_checkpoint` before the final response; the tool rebuilds the daily projection. Do not wait for "session completion" when the meaningful event has already happened. Never directly use `write`, `edit`, or shell redirection against dated memory files. Include service/client, root cause, corrected pattern, checks run or recommended, files changed if any, and follow-ups. Never store secrets.
 
 Never store credentials, API keys, passwords, private keys, auth cookies, or other secrets in AI-EOS.
 

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -20,6 +21,10 @@ const CORE_FILES = [
 const MAX_FILE_CHARS = 30_000;
 const RECENT_MEMORY_LIMIT = 3;
 const MEMORY_STATUS_KEY = "ai-eos";
+const GENERATED_PROJECTION_MARKER = "<!-- AI-EOS generated daily projection; write new entries through ai_eos_memory_checkpoint. -->";
+const MEMORY_EVENT_DIR = "events";
+const PROJECTION_LOCK_TIMEOUT_MS = 10_000;
+const PROJECTION_LOCK_STALE_MS = 60_000;
 
 type FileState = {
   exists: boolean;
@@ -179,9 +184,10 @@ export function buildMemoryCheckpointInstructions(root: string, now = new Date()
   return [
     "## Required AI-EOS memory checkpoint gate",
     "Before the final answer on any turn involving troubleshooting, implementation, operational advice, infrastructure/configuration diagnosis, databases, backups, security, or client-service work, decide whether a durable memory checkpoint is required.",
-    "If the session learned, fixed, diagnosed, implemented, or decided anything significant, append a structured entry to the current AI-EOS dated memory note before the final answer.",
-    `Current dated memory note: ${dailyPath}`,
-    "Prefer the ai_eos_memory_checkpoint tool when available. Otherwise edit or append the Markdown file directly.",
+    "If the session learned, fixed, diagnosed, implemented, or decided anything significant, call ai_eos_memory_checkpoint before the final answer.",
+    `Current daily projection: ${dailyPath}`,
+    "The checkpoint tool is the only supported write path. Never use write, edit, or shell redirection to modify a dated memory note or anything under memory/events/.",
+    "Each checkpoint is stored as an immutable event and the daily Markdown file is rebuilt as a projection. Do not manually edit the projection.",
     "Include service/client, repo/branch when relevant, root cause or decision, corrected pattern, checks run or recommended, files changed if any, and follow-ups.",
     "Never store credentials, API keys, passwords, private keys, auth cookies, or other secrets in AI-EOS.",
   ].join("\n");
@@ -217,13 +223,183 @@ export function renderMemoryCheckpoint(input: MemoryCheckpointInput): string {
   return lines.join("\n");
 }
 
-function appendMemoryCheckpoint(root: string, input: MemoryCheckpointInput, now = new Date()): string {
+function realpathOrResolve(filePath: string): string {
+  try {
+    return fs.realpathSync(filePath);
+  } catch {
+    return path.resolve(filePath);
+  }
+}
+
+function resolvedCandidatePath(candidate: string, cwd: string): string {
+  const expanded = expandHome(candidate.trim());
+  return path.isAbsolute(expanded) ? path.resolve(expanded) : path.resolve(cwd, expanded);
+}
+
+export function isProtectedDatedMemoryPath(candidate: unknown, root = aiEosHome(), cwd = process.cwd()): boolean {
+  if (typeof candidate !== "string" || !candidate.trim()) {
+    return false;
+  }
+
+  const absolute = resolvedCandidatePath(candidate, cwd);
+  const memoryDir = realpathOrResolve(path.join(root, "memory"));
+  const candidateParent = realpathOrResolve(path.dirname(absolute));
+  return /^Memory \d{4}-\d{2}-\d{2}\.md$/.test(path.basename(absolute)) && candidateParent === memoryDir;
+}
+
+export function isProtectedMemoryPath(candidate: unknown, root = aiEosHome(), cwd = process.cwd()): boolean {
+  if (typeof candidate !== "string" || !candidate.trim()) {
+    return false;
+  }
+
+  if (isProtectedDatedMemoryPath(candidate, root, cwd)) {
+    return true;
+  }
+
+  const absolute = resolvedCandidatePath(candidate, cwd);
+  const eventRoot = realpathOrResolve(path.join(root, "memory", MEMORY_EVENT_DIR));
+  const candidateParent = realpathOrResolve(path.dirname(absolute));
+  return candidateParent === eventRoot || candidateParent.startsWith(`${eventRoot}${path.sep}`);
+}
+
+function eventDirectory(root: string, now: Date): string {
+  return path.join(root, "memory", MEMORY_EVENT_DIR, todayString(root, now));
+}
+
+function eventFilename(now: Date): string {
+  return `${now.toISOString().replace(/[:]/g, "").replace(/\.000Z$/, ".000Z")}-${randomUUID()}.md`;
+}
+
+function sleepSynchronously(milliseconds: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+
+function withProjectionLock<T>(root: string, operation: () => T): T {
+  const lockPath = path.join(root, "memory", ".daily-projection.lock");
+  fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+  const deadline = Date.now() + PROJECTION_LOCK_TIMEOUT_MS;
+  let lockFd: number | undefined;
+
+  while (lockFd === undefined) {
+    try {
+      lockFd = fs.openSync(lockPath, "wx", 0o600);
+      fs.writeSync(lockFd, `${process.pid}\n`, undefined, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw error;
+      }
+
+      try {
+        if (Date.now() - fs.statSync(lockPath).mtimeMs > PROJECTION_LOCK_STALE_MS) {
+          fs.unlinkSync(lockPath);
+          continue;
+        }
+      } catch {
+        continue;
+      }
+
+      if (Date.now() >= deadline) {
+        throw new Error(`Timed out waiting for AI-EOS daily projection lock: ${lockPath}`);
+      }
+      sleepSynchronously(10);
+    }
+  }
+
+  try {
+    return operation();
+  } finally {
+    fs.closeSync(lockFd);
+    try {
+      fs.unlinkSync(lockPath);
+    } catch {
+      // Another process may have removed a stale lock after an interruption.
+    }
+  }
+}
+
+function preserveLegacyDailyNote(root: string, dailyPath: string, directory: string): void {
+  if (!fs.existsSync(dailyPath) || readText(dailyPath).includes(GENERATED_PROJECTION_MARKER)) {
+    return;
+  }
+
+  const legacyPath = path.join(directory, "00000000T000000.000Z-legacy.md");
+  try {
+    const fd = fs.openSync(legacyPath, "wx", 0o600);
+    try {
+      fs.writeSync(fd, readText(dailyPath), undefined, "utf8");
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+      throw error;
+    }
+  }
+}
+
+function projectionFromEvents(directory: string): string {
+  const eventFiles = fs.readdirSync(directory)
+    .filter((name) => name.endsWith(".md"))
+    .sort();
+  const sections = eventFiles.map((name) => readText(path.join(directory, name)).trim()).filter(Boolean);
+  return `${GENERATED_PROJECTION_MARKER}\n\n${sections.join("\n\n")}\n`;
+}
+
+function preserveUnexpectedProjectionTail(dailyPath: string, directory: string): void {
+  const current = readText(dailyPath);
+  if (!current.startsWith(`${GENERATED_PROJECTION_MARKER}\n\n`)) {
+    return;
+  }
+
+  const expected = projectionFromEvents(directory);
+  if (!current.startsWith(expected)) {
+    return;
+  }
+
+  const tail = current.slice(expected.length).trim();
+  if (!tail) {
+    return;
+  }
+
+  const recoveryPath = path.join(directory, `99999999T999999.999Z-recovered-${randomUUID()}.md`);
+  const fd = fs.openSync(recoveryPath, "wx", 0o600);
+  try {
+    fs.writeSync(fd, `${tail}\n`, undefined, "utf8");
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+export function rebuildDailyProjection(root: string, now = new Date()): string {
   const dailyPath = dailyMemoryPath(root, now);
-  fs.mkdirSync(path.dirname(dailyPath), { recursive: true });
+  const directory = eventDirectory(root, now);
+
+  return withProjectionLock(root, () => {
+    fs.mkdirSync(directory, { recursive: true });
+    preserveLegacyDailyNote(root, dailyPath, directory);
+    preserveUnexpectedProjectionTail(dailyPath, directory);
+    const projection = projectionFromEvents(directory);
+    const temporaryPath = `${dailyPath}.tmp-${randomUUID()}`;
+    fs.writeFileSync(temporaryPath, projection, { encoding: "utf8", mode: 0o600 });
+    fs.renameSync(temporaryPath, dailyPath);
+    return dailyPath;
+  });
+}
+
+export function appendMemoryCheckpoint(root: string, input: MemoryCheckpointInput, now = new Date()): { eventPath: string; dailyPath: string } {
+  const directory = eventDirectory(root, now);
+  const eventPath = path.join(directory, eventFilename(now));
+  fs.mkdirSync(directory, { recursive: true });
   const checkpoint = renderMemoryCheckpoint(input);
-  const needsSeparator = fs.existsSync(dailyPath) && fs.statSync(dailyPath).size > 0;
-  fs.appendFileSync(dailyPath, `${needsSeparator ? "\n" : ""}${checkpoint}`, "utf8");
-  return dailyPath;
+  const eventFd = fs.openSync(eventPath, "wx", 0o600);
+  try {
+    fs.writeSync(eventFd, checkpoint, undefined, "utf8");
+  } finally {
+    fs.closeSync(eventFd);
+  }
+
+  const dailyPath = rebuildDailyProjection(root, now);
+  return { eventPath, dailyPath };
 }
 
 function buildAiEosContext(): { text: string; missing: string[]; root: string } {
@@ -283,10 +459,10 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "ai_eos_memory_checkpoint",
     label: "AI-EOS Memory Checkpoint",
-    description: "Append a structured checkpoint to today's AI-EOS dated memory note.",
-    promptSnippet: "Append a structured checkpoint to today's AI-EOS dated memory note",
+    description: "Store a structured checkpoint as an immutable AI-EOS memory event and rebuild today's projection.",
+    promptSnippet: "Store a structured checkpoint as an immutable AI-EOS memory event",
     promptGuidelines: [
-      "Use ai_eos_memory_checkpoint before the final answer when a turn learns, fixes, diagnoses, implements, or decides anything significant for AI-EOS continuity.",
+      "Use ai_eos_memory_checkpoint before the final answer when a turn learns, fixes, diagnoses, implements, or decides anything significant for AI-EOS continuity; never write the dated projection directly.",
       "Use ai_eos_memory_checkpoint for operational, infrastructure, database, backup, security, deployment, or client-service lessons instead of waiting for session shutdown.",
       "Never put credentials, API keys, passwords, private keys, auth cookies, or other secrets in ai_eos_memory_checkpoint fields.",
     ],
@@ -310,16 +486,33 @@ export default function (pi: ExtensionAPI) {
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const root = aiEosHome();
-      const dailyPath = appendMemoryCheckpoint(root, params as MemoryCheckpointInput);
+      const result = appendMemoryCheckpoint(root, params as MemoryCheckpointInput);
       const state = runStateBySession.get(sessionKey(ctx));
       if (state) {
         state.usedCheckpointTool = true;
       }
       ctx.ui.setStatus(MEMORY_STATUS_KEY, "AI-EOS: checkpoint written");
       return {
-        content: [{ type: "text", text: `AI-EOS memory checkpoint appended to ${dailyPath}` }],
-        details: { dailyPath },
+        content: [{ type: "text", text: `AI-EOS memory checkpoint stored at ${result.eventPath}; daily projection rebuilt at ${result.dailyPath}` }],
+        details: result,
       };
+    },
+  });
+
+  pi.registerCommand("ai-eos-rebuild-daily", {
+    description: "Rebuild today's AI-EOS daily memory projection from immutable events",
+    handler: async (_args, ctx) => {
+      const dailyPath = rebuildDailyProjection(aiEosHome());
+      ctx.ui.notify(`AI-EOS daily projection rebuilt at ${dailyPath}`, "info");
+    },
+  });
+
+  pi.registerCommand("ai-eos-checkpoint-status", {
+    description: "Show the current AI-EOS checkpoint status",
+    handler: async (_args, ctx) => {
+      const state = runStateBySession.get(sessionKey(ctx));
+      const status = state?.needsCheckpoint ? "checkpoint needed" : "no checkpoint currently pending";
+      ctx.ui.notify(`AI-EOS: ${status}`, state?.needsCheckpoint ? "warning" : "info");
     },
   });
 
@@ -351,6 +544,17 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", async (event, ctx) => {
+    const root = aiEosHome();
+    if (event.toolName === "write" || event.toolName === "edit") {
+      const candidate = (event.input as { path?: unknown }).path;
+      if (isProtectedMemoryPath(candidate, root, ctx.cwd || process.cwd())) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(`Blocked direct write to generated AI-EOS memory projection: ${candidate}`, "warning");
+        }
+        return { block: true, reason: "Dated AI-EOS memory files are generated projections; use ai_eos_memory_checkpoint." };
+      }
+    }
+
     const state = runStateBySession.get(sessionKey(ctx));
     if (!state) {
       return undefined;
@@ -362,7 +566,6 @@ export default function (pi: ExtensionAPI) {
       return undefined;
     }
 
-    const root = aiEosHome();
     const inputText = toolInputText(event.input);
     if (referencesAiEosMemory(inputText, root)) {
       state.usedCheckpointTool = true;
