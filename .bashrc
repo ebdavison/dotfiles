@@ -1,13 +1,28 @@
 # .bashrc
 
+# Keep user-local command directories available in every Bash startup mode.
+_prepend_path_once() {
+    local dir="$1"
+    [[ -d "$dir" ]] || return 0
+    case ":${PATH:-}:" in
+        *":$dir:"*) ;;
+        *) PATH="$dir${PATH:+:$PATH}" ;;
+    esac
+}
+
+_prepend_path_once "/opt/Data/Software/flutter/bin"
+_prepend_path_once "$HOME/.cargo/bin"
+_prepend_path_once "$HOME/.local/bin"
+_prepend_path_once "$HOME/.pi/agent/bin"
+_prepend_path_once "$HOME/bin"
+export PATH
+unset -f _prepend_path_once
+
 # If not running interactively, don't do anything
 case $- in
     *i*) ;;
       *) return;;
 esac
-
-# Node 24 installed via `n` in the user home directory
-export PATH="$HOME/.n/bin:$PATH"
 
 # don't put duplicate lines or lines starting with space in the history.
 # See bash(1) for more options
@@ -270,14 +285,10 @@ alias dprune='docker image prune'
 
 export LIBVA_DRIVER_NAME=iHD
 
-PATH="${PATH:+:${PATH}}"; export PATH;
-export PATH=$PATH:$HOME/bin
-
 # git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && ~/.fzf/install
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
 
 #export JAVA_HOME=$(dirname $(dirname $(readlink $(readlink $(which javac)))))
-#export PATH=$PATH:$JAVA_HOME/bin:$HOME/bin
 #export CLASSPATH=.:$JAVA_HOME/jre/lib:$JAVA_HOME/lib:$JAVA_HOME/lib/tools.jar
 
 
@@ -310,11 +321,7 @@ eval "$(pyenv virtualenv-init -)"
 #   sudo apt isntall rustup
 #   rustup default stable
 #   cargo install zoxide --locked
-export PATH="$PATH:$HOME/.cargo/bin"
 eval "$(zoxide init bash)"
-
-# opencode
-export PATH=/home/eddaviso/.opencode/bin:~/.pi/agent/bin:$PATH
 
 showroute() {
   echo "Kernel IP routing table"
@@ -356,6 +363,6 @@ showroute() {
 }
 
 # Pi
-export PATH="/home/edavison/.local/share/pi-node/node-v22.23.2-linux-x64/bin:$PATH"
-export PATH=$PATH:$HOME/.pi/agents/bin
+[[ -d "$HOME/.local/share/pi-node/node-v22.23.2-linux-x64/bin" ]] && \
+    export PATH="$HOME/.local/share/pi-node/node-v22.23.2-linux-x64/bin:$PATH"
 
